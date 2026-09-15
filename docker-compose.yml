@@ -31,22 +31,33 @@ services:
     container_name: tcg_tcgdex
     restart: unless-stopped
     environment:
-      # OBLIGATOIRE. Sans CI=true le serveur télécharge les tarifs Cardmarket
-      # et TCGplayer *avant* d'ouvrir son port ; derrière une inspection TLS
-      # ces appels échouent en boucle et le port 3000 n'est jamais ouvert —
-      # le conteneur paraît sain mais ne répond pas. Les prix relèvent du
-      # lot 5, pas de l'import du référentiel.
-      CI: "true"
+      # CI=true saute le chargement des tarifs : démarrage en ~25 s, mais
+      # AUCUN prix servi. C'est le défaut, car l'import du lot 2 n'en a pas
+      # besoin et que le démarrage avec prix prend 5 à 10 minutes.
+      #
+      # Pour activer les prix (lot 5), dans le .env :
+      #     TCGDEX_CI=false
+      #     TCGCSV_USER_AGENT=mon-app/0.1 mon.email@exemple.fr
+      #
+      # ⚠️ TCGCSV_USER_AGENT est OBLIGATOIRE dès que CI=false. Sans elle, le
+      # chargement TCGplayer lève une exception qui interrompt le démarrage :
+      # le serveur affiche « Server ready » mais n'écoute jamais, et toute
+      # requête répond « Empty reply from server ». Vérifié le 15/09/2026.
+      CI: ${TCGDEX_CI:-true}
+      TCGCSV_USER_AGENT: ${TCGCSV_USER_AGENT:-}
     ports:
       - "${TCGDEX_HOST_PORT:-3000}:3000"
     healthcheck:
       test:
         ["CMD-SHELL",
          "node -e \"require('http').get('http://localhost:3000/v2/en/sets',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 12
-      start_period: 40s
+      # Généreux à dessein : avec les prix activés, le serveur met 5 à 10
+      # minutes à ouvrir son port. Un start_period court le déclarerait
+      # malade alors qu'il travaille.
+      retries: 40
+      start_period: 600s
 
   api:
     build:
