@@ -1,0 +1,38 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Données de référence et médias (copyright) — jamais commités
+data/
+dumps/
+*.sql.gz
+*.dump
+images/cards/
+**/card_images/
+
+# Outils / IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Front (lot 6)
+node_modules/
