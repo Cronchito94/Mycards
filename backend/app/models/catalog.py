@@ -39,7 +39,11 @@ from app.db.base import Base
 from app.db.mixins import TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.collection import CollectionItem, WatchedPrinting
+    from app.models.collection import (
+        CollectionItem,
+        CollectionSale,
+        WatchedPrinting,
+    )
     from app.models.pricing import PriceSnapshot
     from app.models.tcg import CardType, Finish, Rarity, Tcg
 
@@ -337,6 +341,7 @@ class Printing(TimestampMixin, Base):
     collection_items: Mapped[list["CollectionItem"]] = relationship(
         back_populates="printing"
     )
+    sales: Mapped[list["CollectionSale"]] = relationship(back_populates="printing")
     watches: Mapped[list["WatchedPrinting"]] = relationship(
         back_populates="printing", cascade="all, delete-orphan"
     )

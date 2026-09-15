@@ -11,7 +11,12 @@ from app.models.catalog import (
     ExpansionName,
     Printing,
 )
-from app.models.collection import CollectionItem, WatchedPrinting
+from app.models.collection import (
+    CollectionItem,
+    CollectionSale,
+    SalePlatform,
+    WatchedPrinting,
+)
 from app.models.enums import CardCondition
 from app.models.imports import ImportCheckpoint
 from app.models.pricing import PriceSnapshot, PriceSource
@@ -23,6 +28,7 @@ __all__ = [
     "CardLocalization",
     "CardType",
     "CollectionItem",
+    "CollectionSale",
     "Expansion",
     "ExpansionName",
     "Finish",
@@ -31,6 +37,7 @@ __all__ = [
     "PriceSource",
     "Printing",
     "Rarity",
+    "SalePlatform",
     "Tcg",
     "WatchedPrinting",
 ]
