@@ -68,8 +68,11 @@ curl 'localhost:8000/api/v1/cards?q=dracaufeu'
 curl 'localhost:8000/api/v1/cards/809'
 open http://localhost:8000/docs          # doc interactive
 
-# Tests — 43, dont ceux de l'API qui ont besoin de la base.
+# Tests — 44, dont 9 qui exigent le référentiel importé.
 # Les tests sont montés dans le conteneur, pas embarqués dans l'image.
+# Sans référentiel en base, ces 9 se **sautent** (« 21 passed, 9 skipped ») :
+# la garde interroge les données, pas DATABASE_URL — qui est toujours défini
+# ici et ne prouve donc rien.
 docker compose exec api pip install pytest pytest-asyncio   # une fois
 docker compose exec api python -m pytest tests/ -q
 
@@ -452,6 +455,23 @@ La limite est nette : ce qui sert à **filtrer** reste une table de référence
 rattachée au TCG — `rarity`, `finish`, et désormais `card_type`. Ce qui sert à
 **afficher** va dans le JSONB. Ne pas déplacer un filtre du lot 3 vers
 `attributes` sous prétexte que c'est plus rapide à écrire.
+
+### Ce qui distingue deux lignes appartient à la clé, jamais au JSONB
+
+Corollaire appris à ses dépens (migration `0007`). Le format d'une carte était
+rangé dans `printing.attributes` — donc hors de
+`UNIQUE (card_id, finish_id, language)`. Or le Bulbasaur du Set de Base existe
+en normal **standard** et en normal **jumbo**, deux cotes sans rapport : la
+contrainte les faisait entrer en collision. L'import s'en est sorti en
+fabriquant des finitions `normal_jumbo`, `holo_jumbo`… — l'information se
+retrouvait à deux endroits et le vocabulaire de `finish` doublait à chaque
+format.
+
+`printing.size` est donc une colonne, non nulle, par défaut `standard`, et
+membre de `uq_printing_card_finish_language_size`.
+
+Avant de ranger un champ dans `attributes`, se poser une seule question : **deux
+lignes peuvent-elles ne différer que par lui ?** Si oui, il va dans la clé.
 
 ### Vocabulaires : un `code` invariant, des `labels` par langue
 

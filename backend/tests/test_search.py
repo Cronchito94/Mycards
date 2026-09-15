@@ -1,18 +1,24 @@
 """Tests de la recherche.
 
 Deux niveaux : ce qui se teste sans rien (échappement, filtres) et ce qui
-exige le référentiel chargé. Les seconds se **sautent** proprement si la base
-n'est pas là, plutôt que d'échouer et de masquer un vrai problème.
+exige le référentiel chargé. Les seconds se **sautent** proprement quand le
+référentiel n'est pas importé, plutôt que d'échouer et de masquer un vrai
+problème.
+
+La garde interroge les **données**, pas la configuration. Tester la présence
+de `DATABASE_URL` ne marchait pas : la variable est toujours définie dans le
+conteneur, donc les tests ne sautaient jamais et sortaient cinq échecs sur une
+base vide — exactement le bruit que la garde devait éviter.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import os
 
 import pytest
 
 from app.services.search import CardFilters, escape_like
+from tests.conftest import pytestmark_db
 
 
 class TestEscapeLike:
@@ -52,11 +58,6 @@ class TestCardFilters:
 # ---------------------------------------------------------------------------
 # Tests d'intégration : exigent la base et le référentiel du lot 2.
 # ---------------------------------------------------------------------------
-
-pytestmark_db = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL absent : test d'intégration sauté",
-)
 
 
 @pytest.fixture

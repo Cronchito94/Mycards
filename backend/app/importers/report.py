@@ -20,11 +20,19 @@ class ImportReport:
     languages: list[str] = field(default_factory=list)
     started_at: float = field(default_factory=time.monotonic)
 
+    # Compteurs d'**opérations**, ventilés par langue : une carte vue en `en`
+    # puis en `fr` compte deux fois. Ce ne sont pas des volumes de base — voir
+    # `totals`, qui les rapporte aux lignes réellement présentes.
     expansions: Counter[str] = field(default_factory=Counter)
     cards: Counter[str] = field(default_factory=Counter)
     localizations: Counter[str] = field(default_factory=Counter)
     printings: Counter[str] = field(default_factory=Counter)
     vocabularies: Counter[str] = field(default_factory=Counter)
+
+    # Nombre de lignes en base à la fin de l'import, par table. Rempli par
+    # l'importeur : sans lui, le rapport annonçait 45 528 cartes là où la base
+    # en contenait 23 649, et toute vérification partait de travers.
+    totals: dict[str, int] = field(default_factory=dict)
 
     skipped_expansions: int = 0
     http_retries: int = 0
@@ -45,27 +53,39 @@ class ImportReport:
     def render(self) -> str:
         """Rapport lisible en fin d'exécution."""
 
+        largeur = 22
+
         def bloc(titre: str, c: Counter[str]) -> str:
             if not c:
-                return f"  {titre:<16} —"
+                return f"  {titre:<{largeur}} —"
             detail = "  ".join(f"{k}={v}" for k, v in sorted(c.items()))
-            return f"  {titre:<16} {sum(c.values()):>7}   ({detail})"
+            return f"  {titre:<{largeur}} {sum(c.values()):>7}   ({detail})"
 
         lignes = [
             "",
             "=" * 68,
             f"  IMPORT {self.source.upper()} — langues : {', '.join(self.languages)}",
             "=" * 68,
-            bloc("extensions", self.expansions),
-            bloc("cartes", self.cards),
-            bloc("localisations", self.localizations),
-            bloc("impressions", self.printings),
+            "  Opérations (une carte vue dans deux langues compte deux fois)",
+            bloc("extensions traitées", self.expansions),
+            bloc("cartes traitées", self.cards),
+            bloc("localisations écrites", self.localizations),
+            bloc("impressions écrites", self.printings),
             bloc("vocabulaires", self.vocabularies),
-            f"  {'extensions sautées':<16} {self.skipped_expansions:>7}"
+            f"  {'extensions sautées':<{largeur}} {self.skipped_expansions:>7}"
             "   (déjà importées, voir --force)",
-            f"  {'reprises HTTP':<16} {self.http_retries:>7}",
-            f"  {'durée':<16} {self.duration_s:>7.1f} s",
+            f"  {'reprises HTTP':<{largeur}} {self.http_retries:>7}",
+            f"  {'durée':<{largeur}} {self.duration_s:>7.1f} s",
         ]
+
+        # Les volumes réels : c'est sur eux qu'on vérifie un import, et ils ne
+        # coïncident pas avec les compteurs ci-dessus.
+        if self.totals:
+            lignes += ["", "  En base"]
+            lignes += [
+                f"  {table:<{largeur}} {nombre:>7}"
+                for table, nombre in sorted(self.totals.items())
+            ]
 
         if self.warnings:
             lignes += ["", f"  AVERTISSEMENTS ({len(self.warnings)}) :"]

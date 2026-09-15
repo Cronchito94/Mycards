@@ -25,7 +25,7 @@ import asyncio
 import logging
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -328,20 +328,19 @@ class TcgdexImporter:
             finish_id = await self._finish_id(
                 spec.finish_code, spec.labels.get(language), language
             )
-            attributs = {"size": spec.size} if spec.size != "standard" else {}
+            # Le format est une colonne, plus une clé d'`attributes` ni un
+            # suffixe de finition : il fait partie de l'identité de
+            # l'impression, donc de sa clé d'unicité (migration 0007).
             valeurs = {
                 "card_id": card_id,
                 "finish_id": finish_id,
                 "language": language,
+                "size": spec.size,
                 "external_ids": spec.external_ids(),
-                "attributes": attributs,
             }
             stmt = insert(Printing).values(**valeurs).on_conflict_do_update(
-                index_elements=["card_id", "finish_id", "language"],
-                set_={
-                    "external_ids": valeurs["external_ids"],
-                    "attributes": attributs,
-                },
+                index_elements=["card_id", "finish_id", "language", "size"],
+                set_={"external_ids": valeurs["external_ids"]},
             )
             await self.session.execute(stmt)
             self.report.printings[language] += 1
@@ -383,7 +382,27 @@ class TcgdexImporter:
             authoritative = language == self.reference_language
             await self._import_language(language, authoritative)
 
+        await self._collect_totals()
         return self.report
+
+    async def _collect_totals(self) -> None:
+        """Compte les lignes réellement présentes, pour le rapport.
+
+        Les compteurs d'opérations ne disent pas combien de cartes existent :
+        une carte vue en `en` puis en `fr` y compte deux fois. Sans ces
+        totaux-ci, le rapport annonçait 45 528 cartes pour 23 649 lignes, et
+        toute vérification manuelle partait sur un faux écart.
+        """
+        for nom, modele in (
+            ("expansion", Expansion),
+            ("card", Card),
+            ("card_localization", CardLocalization),
+            ("printing", Printing),
+        ):
+            total = await self.session.scalar(
+                select(func.count()).select_from(modele)
+            )
+            self.report.totals[nom] = int(total or 0)
 
     async def _import_language(self, language: str, authoritative: bool) -> None:
         try:
