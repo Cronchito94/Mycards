@@ -35,3 +35,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` en valeur par défaut est l'idiome d'injection de FastAPI,
+# pas l'argument mutable partagé que B008 cherche à signaler.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
