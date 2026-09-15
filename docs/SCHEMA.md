@@ -282,6 +282,16 @@ le modèle actuel ne s'y oppose.
 dans `TCG`, ses propres `FINISH` et `RARITY`, et un import qui remplisse
 `EXPANSION` / `CARD` / `CARD_NAME`. Aucune migration de schéma.
 
+> **Nuance apportée le 15/09/2026, après confrontation aux données réelles.**
+> C'est exact pour la *structure*, mais les deux jeux portent des attributs que
+> `CARD` n'a nulle part où ranger : `domain`, `energyCost`, `powerCost` et
+> `might` pour Riftbound, type, PV et stade pour Pokémon. Les normaliser en
+> colonnes est exclu — c'est précisément ce que `RARITY` et `FINISH` évitent en
+> étant rattachées à `TCG`. Une colonne `attributes` en JSONB sur `CARD`
+> suffirait, et c'est la seule migration que le multi-TCG semble encore
+> réclamer. **À trancher avant le lot 2** : sans elle, l'import Pokémon perd ces
+> données en silence et devra être rejoué.
+
 ---
 
 ## Vérification

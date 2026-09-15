@@ -1,7 +1,9 @@
 # Mycards — gestionnaire de collection TCG
 
-Application de gestion de collection de cartes TCG (web + mobile via PWA),
-conçue **multi-jeux dès le départ** : Pokémon d'abord, Riftbound ensuite.
+Application de gestion de collection de cartes TCG (web + mobile via PWA), pour
+**deux jeux** : Pokémon et Riftbound (League of Legends). Le modèle de données
+est multi-TCG dès le départ — c'est ce qui permet de tenir les deux sans
+dupliquer quoi que ce soit — mais aucun autre jeu n'est au programme.
 
 La spécification complète et le découpage en lots sont dans [`docs/SPEC.md`](docs/SPEC.md).
 
@@ -87,6 +89,7 @@ pas un simple « je suis en vie ».
 - [x] **Lot 0** — Fondations
 - [x] **Lot 1** — Schéma de données ([`docs/SCHEMA.md`](docs/SCHEMA.md))
 - [ ] Lot 2 — Import du référentiel Pokémon (TCGdex)
+- [ ] Lot 2 bis — Import du référentiel Riftbound
 - [ ] Lot 3 — API de recherche
 - [ ] Lot 4 — Gestion de la collection
 - [ ] Lot 5 — Prix et historique

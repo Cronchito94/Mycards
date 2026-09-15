@@ -7,7 +7,11 @@
 
 ## Contexte
 
-Je construis une application de gestion de collection de cartes TCG (web + mobile), pour remplacer le fait de devoir jongler entre plusieurs applis. Je commence par Pokémon, mais **le modèle de données doit être multi-TCG dès le départ** : Riftbound sera ajouté ensuite, et d'autres jeux après.
+Je construis une application de gestion de collection de cartes TCG (web + mobile), pour remplacer le fait de devoir jongler entre plusieurs applis.
+
+**Deux jeux sont visés, et deux seulement : Pokémon et Riftbound (League of Legends).** Ce sont les deux que je collectionne. Le modèle de données reste **multi-TCG dès le départ** — c'est ce qui permet d'accueillir le second sans tout reprendre — mais aucun autre jeu n'est au programme, et rien ne doit être fait « au cas où » pour Magic ou One Piece.
+
+Pokémon est le premier servi : son référentiel est mûr, multilingue, et sert de banc d'essai. Riftbound suit immédiatement, avant que l'application ne se soit installée dans des réflexes mono-jeu.
 
 Fonctionnalités visées à terme :
 
@@ -85,6 +89,24 @@ Le mapping des finitions vers nos `IMPRESSION` est le point délicat : commence 
 
 ---
 
+### Lot 2 bis — Import du référentiel Riftbound
+
+**Placé ici volontairement, avant la recherche.** Le second jeu doit entrer en base pendant que le modèle est encore malléable : si la recherche, la collection et la valorisation sont écrites en ne voyant que du Pokémon, elles finiront mono-jeu sans que personne ne s'en aperçoive. Deux jeux en base, c'est le seul test honnête du « multi-TCG ».
+
+Ce que l'exploration du 15/09/2026 a établi :
+
+- **670 cartes** sur trois extensions (Origins 349, Spiritforged 297, Proving Grounds 24) dans le jeu de données communautaire `apitcg/riftbound-tcg-data` — mais il s'arrête à juillet 2026 et ne contient **pas** l'extension *Unleashed*.
+- Ce jeu de données est un **dump du catalogue produits TCGplayer** : il mélange cartes et produits scellés (boosters, displays), reconnaissables à leur `cardType` nul. À filtrer.
+- Il porte en revanche un `tcgplayer.id` par carte — une correspondance directe vers une source de prix, à stocker dans `external_ids`.
+- **Aucune source communautaire ne fournit le français**, alors que le français officiel existe depuis le 29/05/2026 (troisième langue du jeu). La seule source de noms FR est la galerie officielle Riot.
+- Autres pistes : Riftcodex (`https://api.riftcodex.com`, REST ouvert sans clé, projet de fans non affilié à Riot) et Scrydex (payant).
+
+Le travail du lot consiste donc d'abord à **trancher la source**, et à me montrer la structure réelle avant tout mapping — comme au lot 2. Le point dur n'est pas l'import : c'est le français.
+
+**Critère de fin** : les cartes Riftbound sont en base à côté des cartes Pokémon, sans migration ni traitement particulier au jeu, et je peux le vérifier en SQL.
+
+---
+
 ### Lot 3 — API de recherche
 
 Endpoints REST : recherche de carte par nom (toutes langues confondues, insensible à la casse et aux accents, tolérante aux fautes via trigram), filtres par extension / rareté / TCG, pagination, et récupération du détail d'une carte avec toutes ses impressions.
@@ -140,7 +162,7 @@ L'API renvoie une liste de candidats classés par score de confiance, jamais une
 
 ## Hors périmètre pour l'instant
 
-- Riftbound : le jeu est trop récent pour avoir un écosystème d'API établi. On s'en occupera après le lot 5, et il faudra probablement construire le référentiel autrement. Le schéma doit juste être prêt à l'accueillir.
+- **Tout TCG autre que Pokémon et Riftbound** (Magic, One Piece, Lorcana…). Le schéma doit pouvoir les accueillir sans migration douloureuse, mais on n'écrit pas une ligne pour eux et on ne choisit pas une source en pensant à eux.
 - Authentification multi-utilisateurs
 - Fonctions sociales, échanges, wishlist partagée
 
