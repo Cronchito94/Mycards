@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import cards, catalog, health
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -23,6 +23,8 @@ async def lifespan(app: FastAPI):
     logger.info("Arrêt de l'API")
 
 
+API_PREFIX = "/api/v1"
+
 app = FastAPI(
     title="TCG Collection API",
     version="0.1.0",
@@ -31,6 +33,11 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+
+# Les routes métier sont préfixées et versionnées : le front du lot 6 et les
+# clients tiers doivent pouvoir suivre une évolution de contrat sans casse.
+app.include_router(catalog.router, prefix=API_PREFIX)
+app.include_router(cards.router, prefix=API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
