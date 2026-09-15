@@ -20,7 +20,7 @@ from app.db.base import Base
 
 # Importer ici les modules de modèles pour qu'ils soient enregistrés sur
 # Base.metadata avant l'autogénération (lot 1) :
-# from app import models  # noqa: F401
+from app import models  # noqa: F401
 
 config = context.config
 
