@@ -50,6 +50,7 @@ pas un simple « je suis en vie ».
 ├── docker-compose.yml       # Postgres + API
 ├── .env.example             # modèle de configuration (le .env est gitignoré)
 ├── docs/SPEC.md             # spécification et découpage en lots
+├── docs/SCHEMA.md           # schéma de données commenté
 ├── CLAUDE.md                # conventions, commandes, état d'avancement
 └── backend/
     ├── Dockerfile
@@ -61,13 +62,14 @@ pas un simple « je suis en vie ».
         ├── main.py
         ├── core/config.py   # settings pydantic
         ├── db/              # base déclarative + sessions
+        ├── models/          # modèles ORM (lot 1)
         └── api/routes/      # endpoints
 ```
 
 ## Avancement
 
 - [x] **Lot 0** — Fondations
-- [ ] Lot 1 — Schéma de données
+- [x] **Lot 1** — Schéma de données ([`docs/SCHEMA.md`](docs/SCHEMA.md))
 - [ ] Lot 2 — Import du référentiel Pokémon (TCGdex)
 - [ ] Lot 3 — API de recherche
 - [ ] Lot 4 — Gestion de la collection

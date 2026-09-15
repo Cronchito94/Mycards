@@ -10,7 +10,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | Lot | Sujet | État |
 |---|---|---|
 | 0 | Fondations (compose, FastAPI, Alembic) | ✅ terminé |
-| 1 | Schéma de données multi-TCG | ⏳ à faire |
+| 1 | Schéma de données multi-TCG | ✅ terminé |
 | 2 | Import référentiel Pokémon (TCGdex) | ⏳ à faire |
 | 3 | API de recherche | ⏳ à faire |
 | 4 | Gestion de la collection | ⏳ à faire |
@@ -47,7 +47,11 @@ docker compose exec api alembic revision --autogenerate -m "message"
 
 # Vérifications
 curl -s http://localhost:8000/health
-docker compose exec api ruff check app
+docker compose exec db psql -U tcg -d tcg -c "\\dt"
+
+# Lint — ruff n'est pas dans l'image runtime (volontairement : elle reste
+# minimale). On le lance depuis backend/, hors conteneur.
+cd backend && pip install -e ".[dev]" && ruff check app
 ```
 
 ---
@@ -123,6 +127,32 @@ settings, donc depuis l'environnement. Rien de secret à committer.
 Le front PWA du lot 6 arrivera dans un `frontend/` à côté. Le
 `docker-compose.yml` reste à la racine et orchestre les deux.
 
+### `card_name.name_normalized` est une colonne générée
+
+La recherche du lot 3 doit ignorer casse et accents. Plutôt que de remplir un
+champ normalisé côté Python — qui finit toujours par diverger quand quelqu'un
+écrit par un autre chemin — la colonne est `GENERATED ALWAYS AS
+(lower(immutable_unaccent(name))) STORED`, et l'index GIN trigram porte sur
+elle. `immutable_unaccent` (migration `0002`) est un wrapper `IMMUTABLE` autour
+d'`unaccent`, que PostgreSQL déclare seulement `STABLE` ; la contrepartie est
+documentée dans `docs/SCHEMA.md`.
+
+### Tables de référence plutôt qu'`ENUM`, sauf pour l'état
+
+`rarity`, `finish` et `price_source` sont des tables : leur vocabulaire est
+ouvert, propre à chaque jeu, et inconnu jusqu'au lot 2. Une nouvelle finition
+doit s'ajouter par un `INSERT`, pas par une migration.
+
+`condition` est en revanche un `ENUM` PostgreSQL : l'échelle Cardmarket (`MT`,
+`NM`, `EX`, `GD`, `LP`, `PL`, `PO`) est fermée et stable.
+
+### Cascades : la collection résiste, le reste s'efface
+
+`card_name`, `printing` et `price_snapshot` sont en `CASCADE` — données
+dérivées du référentiel. `collection_item` est en `RESTRICT` : c'est la seule
+donnée non reconstructible, un réimport qui la menacerait doit échouer
+bruyamment plutôt que l'effacer en silence.
+
 ### Dockerfile : stub `app/` avant le `pip install`
 
 Les dépendances s'installent avant la copie du code pour garder le layer en
@@ -134,11 +164,15 @@ code réellement copié qui est importé, pas le résidu en `site-packages`.
 
 ## Points ouverts
 
-- **Lot 1** : le mapping des finitions (normale / reverse / holo / 1st ed.) doit
-  rester ouvert — on ne connaîtra la réalité des données qu'au lot 2, après
-  exploration de l'API TCGdex.
 - **Lot 2** : explorer et **montrer la structure réelle** renvoyée par TCGdex
-  avant d'écrire le moindre mapping.
+  avant d'écrire le moindre mapping. Les finitions réelles iront dans la table
+  `finish` (un `INSERT`, pas une migration) ; la table `rarity` se remplit de
+  la même façon, au fil de l'import.
+- **Lot 2** : l'idempotence de l'import s'appuie sur `external_ids` (JSONB
+  indexé GIN) sur `expansion`, `card` et `printing`.
+- **Lot 3** : vérifier que l'index `ix_card_name_normalized_trgm` est
+  réellement utilisé (`EXPLAIN ANALYZE`) une fois le référentiel chargé — sur
+  une table quasi vide, PostgreSQL l'ignore à raison.
 - **Lot 5** : vérifier l'état actuel de l'API pokemontcg.io avant de coder ;
   le connecteur de prix passe derrière une interface abstraite.
 - **Riftbound** : hors périmètre jusqu'après le lot 5, mais le schéma du lot 1
