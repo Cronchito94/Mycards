@@ -113,7 +113,7 @@ recouvre l'autre** :
 | Clés stables par langue | ✅ | ❌ (`Normal` en FR, `normal` en EN) |
 | `firstEdition` | ✅ **seule source** (938 cartes) | ❌ jamais présent |
 | `lenticular`, `metal` | ❌ | ✅ **seule source** |
-| Taille `jumbo` | ❌ | ✅ **seule source** (210 entrées) |
+| Format `jumbo` (→ `printing.size`) | ❌ | ✅ **seule source** (210 entrées) |
 | Identifiants Cardmarket / TCGplayer | ❌ | ✅ |
 
 **Les deux divergent sur 13 % des cartes.** On prend donc l'union — décision
@@ -148,21 +148,30 @@ coter. Aucune migration nécessaire.
 ### Le résultat
 
 ```
-       code       | impressions
-------------------+-------------
- normal           |       34554
- reverse          |       15924
- holo             |       11819
- first_edition    |        1614   ← issu des seuls booléens
- holo_jumbo       |         298
- normal_jumbo     |          46
- reverse_jumbo    |          24
- lenticular_jumbo |          18   ← issu des seules variantes détaillées
- metal            |           4   ← idem
+     code      |   size   | impressions
+---------------+----------+-------------
+ normal        | standard |       34554
+ reverse       | standard |       15924
+ holo          | standard |       11819
+ first_edition | standard |        1614   ← issu des seuls booléens
+ holo          | jumbo    |         298
+ normal        | jumbo    |          46
+ reverse       | jumbo    |          24
+ lenticular    | jumbo    |          18   ← issu des seules variantes détaillées
+ metal         | standard |           4   ← idem
 ```
 
-`first_edition` a des `labels` vides : la source ne fournit aucun libellé pour
-cette finition. On ne l'invente pas — l'interface retombera sur le code.
+**Six finitions, deux formats.** Le format est une colonne de `printing`
+(`size`) et un membre de sa clé d'unicité, pas un suffixe de finition : une
+jumbo est bien une impression distincte — deux cotes sans rapport — mais ce
+n'est pas une autre *finition*. Voir la migration `0006`, qui a ramené neuf
+codes à six.
+
+`first_edition` ne vient que des booléens, et `variants` ne fournit aucun
+libellé. Plutôt que de le laisser avec des `labels` vides — seule entrée du
+vocabulaire à n'avoir aucun nom affichable — l'import pose un libellé anglais
+de repli (`BOOLEAN_FINISH_LABELS`). Ce n'est pas une traduction inventée : un
+libellé venu de `variants_detailed` le remplace dès qu'il existe.
 
 `w_promo` existe dans le vocabulaire de TCGdex mais **n'est jamais vrai** dans
 le corpus actuel : aucune finition n'a donc été créée pour lui.

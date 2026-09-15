@@ -1,14 +1,19 @@
 """Tests de la recherche.
 
 Deux niveaux : ce qui se teste sans rien (échappement, filtres) et ce qui
-exige le référentiel chargé. Les seconds se **sautent** proprement si la base
-n'est pas là, plutôt que d'échouer et de masquer un vrai problème.
+exige le référentiel chargé. Les seconds se **sautent** proprement quand le
+référentiel n'est pas importé, plutôt que d'échouer et de masquer un vrai
+problème.
+
+La garde interroge les **données**, pas la configuration. Tester la présence
+de `DATABASE_URL` ne marchait pas : la variable est toujours définie dans le
+conteneur, donc les tests ne sautaient jamais et sortaient cinq échecs sur une
+base vide — exactement le bruit que la garde devait éviter.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import os
 
 import pytest
 
@@ -53,9 +58,32 @@ class TestCardFilters:
 # Tests d'intégration : exigent la base et le référentiel du lot 2.
 # ---------------------------------------------------------------------------
 
+def _referentiel_charge() -> bool:
+    """Y a-t-il au moins une carte en base ?
+
+    Connexion synchrone volontaire : la garde est évaluée à la collecte, avant
+    toute boucle asyncio. Toute erreur — base éteinte, schéma absent, table
+    vide — rend False : on saute, on n'échoue pas.
+    """
+    try:
+        import psycopg
+
+        from app.core.config import get_settings
+
+        dsn = get_settings().database_url.replace("+psycopg", "")
+        with psycopg.connect(dsn, connect_timeout=3) as connexion:
+            ligne = connexion.execute("SELECT EXISTS (SELECT 1 FROM card)").fetchone()
+            return bool(ligne and ligne[0])
+    except Exception:
+        return False
+
+
 pytestmark_db = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL absent : test d'intégration sauté",
+    not _referentiel_charge(),
+    reason=(
+        "référentiel non importé : docker compose exec api "
+        "python -m app.importers.cli --languages en,fr"
+    ),
 )
 
 

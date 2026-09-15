@@ -88,13 +88,34 @@ class TestExtractFinishes:
         assert len(specs) == 1
         assert specs[0].external_ids()["cardmarket"] == [720365, 733596]
 
-    def test_jumbo_donne_une_finition_distincte(self) -> None:
+    def test_jumbo_garde_le_code_de_finition_et_porte_sa_taille(self) -> None:
+        # Depuis la migration 0006, le format ne suffixe plus la finition :
+        # il vit dans `printing.size`, membre de la clé d'unicité.
         payload = {
             "variants": {},
             "variants_detailed": [{"type": "holo", "size": "jumbo", "variantId": "x"}],
         }
         specs, _ = extract_finishes(payload, "en")
-        assert [s.finish_code for s in specs] == ["holo_jumbo"]
+        assert [(s.finish_code, s.size) for s in specs] == [("holo", "jumbo")]
+
+    def test_jumbo_et_standard_restent_deux_impressions(self) -> None:
+        """Le Bulbasaur du Set de Base existe dans les deux formats.
+
+        Même finition, deux cotes sans rapport : elles ne doivent jamais
+        fusionner, quel que soit le mécanisme qui les distingue.
+        """
+        payload = {
+            "variants": {"normal": True},
+            "variants_detailed": [
+                {"type": "normal", "size": "standard", "variantId": "a"},
+                {"type": "normal", "size": "jumbo", "variantId": "b"},
+            ],
+        }
+        specs, _ = extract_finishes(payload, "en")
+        assert sorted((s.finish_code, s.size) for s in specs) == [
+            ("normal", "jumbo"),
+            ("normal", "standard"),
+        ]
 
     def test_type_francais_donne_le_meme_code(self) -> None:
         fr = {"variants": {}, "variants_detailed": [{"type": "Métal", "size": "Standard"}]}

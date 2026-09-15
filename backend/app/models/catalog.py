@@ -286,7 +286,7 @@ class CardLocalization(TimestampMixin, Base):
 
 
 class Printing(TimestampMixin, Base):
-    """La déclinaison concrète d'une carte : une finition, une langue.
+    """La déclinaison concrète d'une carte : une finition, un format, une langue.
 
     **C'est le niveau auquel s'attache un prix**, et le niveau qu'on possède.
     """
@@ -294,7 +294,11 @@ class Printing(TimestampMixin, Base):
     __tablename__ = "printing"
     __table_args__ = (
         UniqueConstraint(
-            "card_id", "finish_id", "language", name="uq_printing_card_finish_language"
+            "card_id",
+            "finish_id",
+            "language",
+            "size",
+            name="uq_printing_card_finish_language_size",
         ),
         Index("ix_printing_external_ids", "external_ids", postgresql_using="gin"),
     )
@@ -307,6 +311,23 @@ class Printing(TimestampMixin, Base):
         ForeignKey("finish.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     language: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+
+    # Format physique de la carte : "standard" ou "jumbo" chez TCGdex.
+    #
+    # Colonne à part entière **et membre de la contrainte d'unicité**, parce
+    # que le format fait partie de l'identité de l'impression : le Bulbasaur du
+    # Set de Base existe en normal standard *et* en normal jumbo, avec deux
+    # cotes sans rapport. Sans lui dans la clé, l'import n'avait d'autre choix
+    # que de fabriquer des finitions `normal_jumbo` — ce qui multipliait le
+    # vocabulaire de `finish` par le nombre de formats et dédoublait
+    # l'information. Voir la migration 0006.
+    #
+    # Non nul et jamais vide : `standard` est la valeur par défaut, pas `NULL`.
+    # Un `NULL` sortirait les lignes concernées de la contrainte d'unicité, qui
+    # ne les comparerait plus entre elles.
+    size: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="standard"
+    )
 
     # Correspondance vers la clé de prix de chaque source :
     #   {"cardmarket": [483559], "tcgplayer": [219333],

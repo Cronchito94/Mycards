@@ -40,7 +40,7 @@ erDiagram
     EXPANSION_NAME { int id PK; int expansion_id FK; string language; string name; text name_normalized; text logo_url }
     CARD { int id PK; int expansion_id FK; string number; int number_sort; int rarity_id FK; int card_type_id FK; string illustrator; jsonb attributes; jsonb external_ids }
     CARD_LOCALIZATION { int id PK; int card_id FK; string language; string name; text name_normalized; text image_url; string image_phash; jsonb attributes }
-    PRINTING { int id PK; int card_id FK; int finish_id FK; string language; jsonb external_ids; jsonb attributes }
+    PRINTING { int id PK; int card_id FK; int finish_id FK; string language; string size; jsonb external_ids; jsonb attributes }
     COLLECTION_ITEM { int id PK; int printing_id FK; int quantity; enum condition; numeric purchase_price; string purchase_currency; date purchase_date; text notes }
     PRICE_SNAPSHOT { int id PK; int printing_id FK; int source_id FK; date observed_on; timestamptz fetched_at; numeric amount; string currency; string price_type; jsonb raw }
     WATCHED_PRINTING { int id PK; int printing_id FK UK; text notes }
@@ -95,7 +95,20 @@ différente.
 |---|---|---|---|
 | `CARD` | ce qui ne dépend ni de la langue ni de la finition | `{"hp": 110, "retreat": 1, "dexId": [162]}` | `{"domain": "Fury", "energyCost": "5", "might": "5"}` |
 | `CARD_LOCALIZATION` | ce qui change avec la langue | `{"stage": "Niveau 1", "attacks": [...]}` | `{"description": "ACCELERATE …"}` |
-| `PRINTING` | ce qui distingue une impression sans être sa finition | `{"size": "Jumbo"}` | — |
+| `PRINTING` | ce qui décrit l'impression sans l'identifier | — | — |
+
+> **`size` n'est pas dans `attributes`, et c'est une correction.** La colonne a
+> d'abord été pensée pour accueillir le format (`{"size": "jumbo"}`), mais le
+> format **identifie** l'impression : le Bulbasaur du Set de Base existe en
+> normal standard et en normal jumbo, avec deux cotes sans rapport. Rangé dans
+> `attributes`, il restait hors de la clé d'unicité — l'import n'avait alors
+> d'autre choix que de fabriquer des finitions `normal_jumbo`, `holo_jumbo`…,
+> dupliquant l'information et gonflant le vocabulaire de `finish` à chaque
+> format. D'où la colonne `printing.size`, membre de
+> `uq_printing_card_finish_language_size` (migration `0006`).
+>
+> La leçon vaut pour la suite : **ce qui distingue deux lignes appartient à la
+> clé, jamais au JSONB.**
 
 **Pourquoi du JSONB et pas des colonnes.** Les deux jeux n'ont pas un seul
 attribut en commun — c'est vérifié par un test, pas supposé. Des colonnes

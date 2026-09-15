@@ -63,7 +63,22 @@ DETAILED_FINISHES: dict[str, str] = {
     "metal": "metal",
 }
 
-# Taille considérée comme la norme : elle ne suffixe pas le code de finition.
+# Libellé anglais de repli pour les finitions qui ne viennent QUE des booléens.
+# `variants` n'expose pas de libellé, seulement des clés : sans ce repli,
+# `first_edition` et `w_promo` arrivaient en base avec `labels = {}`, seules de
+# tout le vocabulaire à n'avoir aucun nom affichable.
+# Ce sont des libellés de repli, pas des traductions : l'anglais sert de socle,
+# et un libellé venu de `variants_detailed` le remplace quand il existe.
+BOOLEAN_FINISH_LABELS: dict[str, str] = {
+    "normal": "Normal",
+    "reverse": "Reverse",
+    "holo": "Holo",
+    "first_edition": "1st Edition",
+    "w_promo": "W Promo",
+}
+
+# Format considéré comme la norme. Il ne suffixe rien : la taille est une
+# colonne de `printing`, membre de sa clé d'unicité (migration 0006).
 DEFAULT_SIZE = "standard"
 
 # Champs de la charge utile **invariants par langue** (vérifié en comparant la
@@ -135,9 +150,15 @@ class FinishSpec:
 
     @property
     def finish_code(self) -> str:
-        """Le code stocké en base : la taille ne suffixe que si elle sort de
-        l'ordinaire — une jumbo n'a ni la même cote ni la même place."""
-        return self.code if self.size == DEFAULT_SIZE else f"{self.code}_{self.size}"
+        """Le code stocké en base, sans le format.
+
+        Une jumbo n'a ni la même cote ni la même place, mais ça n'en fait pas
+        une autre *finition* : depuis la migration 0006, le format est une
+        colonne de `printing` et un membre de sa clé d'unicité. Le suffixer ici
+        dupliquerait l'information et gonflerait le vocabulaire de `finish` à
+        chaque format rencontré.
+        """
+        return self.code
 
     def external_ids(self) -> dict[str, Any]:
         """Identifiants externes de l'impression.
@@ -174,7 +195,14 @@ def extract_finishes(
     def obtenir(code: str, size: str) -> FinishSpec:
         cle = (code, size)
         if cle not in specs:
-            specs[cle] = FinishSpec(code, size)
+            spec = FinishSpec(code, size)
+            # Libellé de repli posé dès la création : les finitions qui ne
+            # viennent que des booléens n'en recevraient jamais autrement, la
+            # boucle `variants_detailed` étant seule à en fournir.
+            repli = BOOLEAN_FINISH_LABELS.get(code)
+            if repli:
+                spec.labels["en"] = repli
+            specs[cle] = spec
         return specs[cle]
 
     # 1. Les booléens : socle invariant, seule source de `firstEdition`.
