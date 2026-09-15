@@ -29,6 +29,7 @@ Puis :
 - API : http://localhost:8000
 - Santé : http://localhost:8000/health
 - Doc OpenAPI : http://localhost:8000/docs
+- Recherche : http://localhost:8000/api/v1/cards?q=dracaufeu
 
 `docker compose up` attend que Postgres soit *healthy*, applique les migrations
 Alembic, puis démarre l'API.
@@ -70,6 +71,7 @@ pas un simple « je suis en vie ».
 ├── docs/SPEC.md             # spécification et découpage en lots
 ├── docs/SCHEMA.md           # schéma de données commenté
 ├── docs/IMPORT.md           # import du référentiel et constats sur TCGdex
+├── docs/API.md              # API de recherche
 ├── CLAUDE.md                # conventions, commandes, état d'avancement
 └── backend/
     ├── Dockerfile
@@ -83,6 +85,8 @@ pas un simple « je suis en vie ».
         ├── db/              # base déclarative + sessions
         ├── models/          # modèles ORM (lot 1)
         ├── importers/       # import du référentiel (lot 2)
+        ├── schemas/         # schémas d'entrée/sortie (lot 3)
+        ├── services/        # logique métier, SQL de recherche (lot 3)
         └── api/routes/      # endpoints
 ```
 
@@ -93,7 +97,7 @@ pas un simple « je suis en vie ».
 - [x] **Lot 1 bis** — Localisation complète, attributs de jeu, types de carte
 - [x] **Lot 2** — Import du référentiel Pokémon ([`docs/IMPORT.md`](docs/IMPORT.md))
 - [ ] Lot 2 bis — Import du référentiel Riftbound
-- [ ] Lot 3 — API de recherche
+- [x] **Lot 3** — API de recherche ([`docs/API.md`](docs/API.md))
 - [ ] Lot 4 — Gestion de la collection
 - [ ] Lot 5 — Prix et historique
 - [ ] Lot 6 — Front PWA

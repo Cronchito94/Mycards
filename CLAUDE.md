@@ -14,7 +14,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | 1 bis | Schéma : localisation, attributs de jeu, types de carte | ✅ terminé |
 | 2 | Import référentiel Pokémon (TCGdex) | ✅ terminé |
 | 2 bis | Import référentiel Riftbound | ⏳ à faire |
-| 3 | API de recherche | ⏳ à faire |
+| 3 | API de recherche | ✅ terminé |
 | 4 | Gestion de la collection | ⏳ à faire |
 | 5 | Prix et historique | ⏳ à faire |
 | 6 | Front PWA | ⏳ à faire |
@@ -58,8 +58,15 @@ docker compose exec api python -m app.importers.cli --languages en,fr
 docker compose exec api python -m app.importers.cli --expansions swsh3   # essai
 docker compose exec api python -m app.importers.cli --force              # tout refaire
 
-# Tests (le mapping TCGdex est pur, donc testable sans base ni réseau)
-cd backend && PYTHONPATH=. python -m pytest tests/ -q
+# API de recherche (lot 3)
+curl 'localhost:8000/api/v1/cards?q=dracaufeu'
+curl 'localhost:8000/api/v1/cards/809'
+open http://localhost:8000/docs          # doc interactive
+
+# Tests — 29, dont ceux de l'API qui ont besoin de la base.
+# Les tests sont montés dans le conteneur, pas embarqués dans l'image.
+docker compose exec api pip install pytest pytest-asyncio   # une fois
+docker compose exec api python -m pytest tests/ -q
 
 # Vérifications
 curl -s http://localhost:8000/health
@@ -211,6 +218,25 @@ Trois constats mesurés, à ne pas réapprendre :
   Cardmarket différents. Une seule impression est créée, et `external_ids`
   conserve **tous** les identifiants en liste.
 
+### Recherche : le terme est normalisé par PostgreSQL, pas par Python
+
+`card_localization.name_normalized` est une colonne générée. Normaliser la
+requête côté Python avec un `unicodedata` maison finirait par diverger du
+dictionnaire `unaccent` de la base, et la recherche raterait des cartes **en
+silence**. On paie donc un aller-retour SQL pour normaliser avec *la même
+fonction*. Ne pas « optimiser » ça.
+
+L'opérateur `%` (trigram) et `LIKE '%…%'` sont complémentaires et utilisent le
+**même** index GIN : le premier absorbe les fautes, le second attrape les
+sous-chaînes que le trigram note trop bas. Les jokers saisis par l'utilisateur
+sont échappés — l'antislash en premier, sinon il ré-échappe le reste.
+
+### Les filtres portent sur les `code`, jamais sur les libellés
+
+`rarity=uncommon` fonctionne, `rarity=Peu Commune` renvoie zéro. Un libellé
+change avec la langue, un code non. Même règle pour toutes les sorties : ce
+qui est traduit sort en dictionnaire par langue, jamais résolu par le serveur.
+
 ### Dockerfile : stub `app/` avant le `pip install`
 
 Les dépendances s'installent avant la copie du code pour garder le layer en
@@ -269,13 +295,20 @@ Tout est documenté dans `docs/IMPORT.md`. Reste ouvert :
 - L'amont ne publie **aucun tag versionné** (seulement `edge` et
   `branch-master`) : revérifier que l'API répond après chaque `pull`.
 
-### Lot 3
+### Lot 3 — API de recherche ✅ fait
 
-- ✅ L'index trigram est bien utilisé une fois le référentiel chargé, vérifié le
-  15/09/2026 sur 45 528 lignes : `Bitmap Index Scan on
-  ix_card_localization_normalized_trgm`, 1,3 ms. Point clos.
-- Les données satisfont déjà le critère de fin du lot : « dracaufeu » et
-  « charizard » retombent sur les mêmes `card.id`. Reste à exposer l'API.
+Critère de fin vérifié : les 24 correspondances exactes de « dracaufeu » sont
+toutes dans le résultat de « charizard ». Détail dans `docs/API.md`. Reste
+ouvert, à traiter avec le front du lot 6 sur des cas réels :
+
+- Une faute peut classer un voisin plus court devant la bonne carte :
+  `dracofeu` remonte « Draco » (0,50) avant « Dracaufeu » (0,46). Verdict du
+  trigram, pas un bug — `word_similarity` donne le même ordre.
+- Deux fautes dans un nom court passent sous `pg_trgm.similarity_threshold`
+  (0,3) : `sharizrd` ne trouve pas Charizard. Abaisser le seuil ramènerait du
+  bruit — à régler sur des recherches réelles, pas à l'aveugle.
+- Sous 3 caractères l'index trigram ne sert plus (parcours séquentiel, ~10 ms
+  sur 45 000 lignes). Laissé passer plutôt qu'interdit.
 
 ### Lot 5 — les sources de prix ont changé depuis la rédaction de la spec
 
@@ -300,12 +333,14 @@ source du lot 5 : **à rediscuter avant de coder.**
 - Le connecteur de prix reste derrière une interface abstraite, conformément à
   la spec — c'est précisément ce qui permet d'absorber ces changements.
 
-### Lot 2 bis — Riftbound
+### Lot 2 bis — Riftbound (reporté)
 
-Riftbound n'est plus repoussé après le lot 5 : c'est, avec Pokémon, l'un des
-**deux** jeux du projet (`docs/SPEC.md` mis à jour le 15/09/2026). Il s'importe
-juste après Pokémon, avant la recherche — deux jeux en base sont le seul test
-honnête du caractère multi-TCG.
+**Décision du 15/09/2026 : on se concentre sur Pokémon d'abord.** Riftbound
+attend qu'une chaîne complète tourne sur un seul jeu — recherche, collection,
+prix — avant d'ajouter un second TCG. Le schéma est prêt à l'accueillir : une
+ligne dans `tcg`, ses `finish` et `rarity`, un import. Aucune migration.
+
+L'exploration ci-dessous reste valable pour le jour où on s'y remettra.
 
 Exploration du 15/09/2026, à reprendre au moment du lot :
 
