@@ -12,6 +12,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | 0 | Fondations (compose, FastAPI, Alembic) | ✅ terminé |
 | 1 | Schéma de données multi-TCG | ✅ terminé |
 | 2 | Import référentiel Pokémon (TCGdex) | ⏳ à faire |
+| 2 bis | Import référentiel Riftbound | ⏳ à faire |
 | 3 | API de recherche | ⏳ à faire |
 | 4 | Gestion de la collection | ⏳ à faire |
 | 5 | Prix et historique | ⏳ à faire |
@@ -240,12 +241,53 @@ source du lot 5 : **à rediscuter avant de coder.**
 - Le connecteur de prix reste derrière une interface abstraite, conformément à
   la spec — c'est précisément ce qui permet d'absorber ces changements.
 
-### Riftbound
+### Lot 2 bis — Riftbound
 
-Hors périmètre jusqu'après le lot 5, mais le schéma du lot 1 doit pouvoir
-l'accueillir sans migration douloureuse. Écosystème d'API désormais existant
-mais jeune (Riftcodex, Piltover Archive, apitcg.com, JustTCG) : aucune source
-n'est encore garantie pérenne.
+Riftbound n'est plus repoussé après le lot 5 : c'est, avec Pokémon, l'un des
+**deux** jeux du projet (`docs/SPEC.md` mis à jour le 15/09/2026). Il s'importe
+juste après Pokémon, avant la recherche — deux jeux en base sont le seul test
+honnête du caractère multi-TCG.
+
+Exploration du 15/09/2026, à reprendre au moment du lot :
+
+- `apitcg/riftbound-tcg-data` (GitHub, dumps JSON) : **670 cartes réelles** sur
+  trois extensions — Origins 349, Spiritforged 297, Proving Grounds 24.
+- ⚠️ C'est un **dump du catalogue produits TCGplayer**, pas un référentiel de
+  cartes : boosters et displays y côtoient les cartes, reconnaissables à leur
+  `cardType` nul (11 sur 360 pour Origins). À filtrer à l'import.
+- Champs utiles : `number` (`001/298`), `rarity`, `cardType`, `domain`,
+  `energyCost`, `powerCost`, `might`, `description`. Images servies par le CDN
+  TCGplayer — on ne stocke que l'URL.
+- `tcgplayer.id` par carte : correspondance directe vers une source de prix, à
+  ranger dans `external_ids`.
+- ⚠️ Dernière mise à jour en juillet 2026 : l'extension **Unleashed** manque
+  déjà. Vérifier la fraîcheur avant de s'appuyer dessus.
+- ⚠️ **Aucune source communautaire ne fournit le français** (`cards/en/`
+  seulement), alors que le français officiel existe depuis le **29/05/2026** —
+  troisième langue du jeu, après l'anglais et le chinois simplifié. La seule
+  source de noms FR identifiée est la galerie officielle Riot
+  (`playriftbound.com/fr-fr/card-gallery/`, dont la version FR existe bien).
+  **C'est le point dur du lot**, pas l'import : vérifier les CGU de Riot avant
+  d'envisager quoi que ce soit là-dessus.
+- Autres pistes : Riftcodex (`https://api.riftcodex.com`, REST ouvert sans clé,
+  projet de fans non affilié à Riot) et Scrydex (couvre Riftbound, payant).
+- Depuis le poste de référence, `api.apitcg.com`, `riftcodex.com` et
+  `piltoverarchive.com` sont **injoignables** (échec TLS, y compris depuis un
+  conteneur) : WARP casse le handshake. Les dumps `raw.githubusercontent.com`,
+  eux, passent — raison de plus de préférer l'import par fichiers.
+
+### Le schéma n'a pas de place pour les attributs propres à un jeu
+
+Constaté en confrontant le lot 1 aux données Riftbound réelles : `CARD` porte
+`external_ids` mais **aucun champ pour les caractéristiques de jeu**. Le domaine,
+le coût d'énergie, la puissance et le *might* de Riftbound n'ont nulle part où
+aller — pas plus que le type, les PV ou le stade d'un Pokémon.
+
+Les normaliser en colonnes est exclu : le vocabulaire diffère d'un jeu à
+l'autre, c'est exactement ce que `RARITY` et `FINISH` évitent déjà en étant
+rattachées à `TCG`. Une colonne `attributes` en JSONB sur `CARD` réglerait le
+cas. **À trancher avant le lot 2**, parce que l'import Pokémon perdrait sinon
+ces données en silence et qu'il faudrait tout réimporter.
 
 ### Poste de développement
 
