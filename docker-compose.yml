@@ -70,6 +70,10 @@ services:
       # Hot-reload en dev : le code de l'hôte masque celui de l'image.
       - ./backend/app:/srv/app/app
       - ./backend/alembic:/srv/app/alembic
+      # Les tests ne sont pas dans l'image (elle reste minimale) mais montés
+      # en dev : ceux de l'API ont besoin de la base, donc du réseau interne.
+      - ./backend/tests:/srv/app/tests
+      - ./backend/pyproject.toml:/srv/app/pyproject.toml:ro
     command:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
