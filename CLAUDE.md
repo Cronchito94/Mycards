@@ -11,6 +11,7 @@ La spec de référence est dans `docs/SPEC.md`.
 |---|---|---|
 | 0 | Fondations (compose, FastAPI, Alembic) | ✅ terminé |
 | 1 | Schéma de données multi-TCG | ✅ terminé |
+| 1 bis | Schéma : localisation, attributs de jeu, types de carte | ✅ terminé |
 | 2 | Import référentiel Pokémon (TCGdex) | ⏳ à faire |
 | 2 bis | Import référentiel Riftbound | ⏳ à faire |
 | 3 | API de recherche | ⏳ à faire |
@@ -276,18 +277,41 @@ Exploration du 15/09/2026, à reprendre au moment du lot :
   conteneur) : WARP casse le handshake. Les dumps `raw.githubusercontent.com`,
   eux, passent — raison de plus de préférer l'import par fichiers.
 
-### Le schéma n'a pas de place pour les attributs propres à un jeu
+### Ce que la langue change — et ce qu'elle ne change pas
 
-Constaté en confrontant le lot 1 aux données Riftbound réelles : `CARD` porte
-`external_ids` mais **aucun champ pour les caractéristiques de jeu**. Le domaine,
-le coût d'énergie, la puissance et le *might* de Riftbound n'ont nulle part où
-aller — pas plus que le type, les PV ou le stade d'un Pokémon.
+Réglé par la migration `0004`. La règle, à connaître avant d'écrire le moindre
+import :
 
-Les normaliser en colonnes est exclu : le vocabulaire diffère d'un jeu à
-l'autre, c'est exactement ce que `RARITY` et `FINISH` évitent déjà en étant
-rattachées à `TCG`. Une colonne `attributes` en JSONB sur `CARD` réglerait le
-cas. **À trancher avant le lot 2**, parce que l'import Pokémon perdrait sinon
-ces données en silence et qu'il faudrait tout réimporter.
+| Ce qui est **invariant** | Ce qui est **localisé** |
+|---|---|
+| `hp`, `retreat`, `dexId`, `regulationMark` | nom, rareté, stade, types, attaques |
+| illustrateur, numéro, finition | **l'image et son pHash** |
+| `domain`, `energyCost`, `might` (Riftbound) | texte de règles, nom d'extension |
+
+L'image est le piège : une carte française et son équivalent anglais partagent
+l'illustration mais pas l'image imprimée. D'où `image_url` et `image_phash` dans
+`card_localization` et non dans `card` — sinon le scan photo du lot 7 comparerait
+une photo de carte française à des empreintes anglaises.
+
+### Attributs de jeu : JSONB pour l'affichage, table pour le filtre
+
+`card.attributes`, `card_localization.attributes` et `printing.attributes`
+accueillent ce qui est propre à chaque jeu. Les deux jeux n'ont **aucun attribut
+en commun** (vérifié, pas supposé), donc des colonnes typées auraient donné une
+table à moitié vide de chaque côté.
+
+La limite est nette : ce qui sert à **filtrer** reste une table de référence
+rattachée au TCG — `rarity`, `finish`, et désormais `card_type`. Ce qui sert à
+**afficher** va dans le JSONB. Ne pas déplacer un filtre du lot 3 vers
+`attributes` sous prétexte que c'est plus rapide à écrire.
+
+### Vocabulaires : un `code` invariant, des `labels` par langue
+
+`rarity`, `finish` et `card_type` portent `labels` en JSONB
+(`{"fr": "Peu Commune", "en": "Uncommon"}`) et non un libellé unique : TCGdex
+renvoie la rareté traduite, et un import français aurait figé l'interface en
+français. Le `code` reste la clé d'upsert, et il ne doit jamais dépendre de la
+langue importée.
 
 ### Poste de développement
 

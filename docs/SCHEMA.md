@@ -1,10 +1,17 @@
-# Schéma de données — lot 1
+# Schéma de données
 
-Modèle de référence multi-TCG. Il tient en **7 tables de domaine** et
-**3 tables de référence**.
+Modèle de référence multi-TCG, éprouvé sur les deux jeux du projet — Pokémon et
+Riftbound. Il tient en **9 tables de domaine** et **4 tables de référence**.
 
-La décision structurante tient en une phrase : **une CARTE n'a pas de prix,
-une IMPRESSION en a un.** Tout le reste en découle.
+Deux décisions le structurent, et chacune tient en une phrase :
+
+1. **Une CARTE n'a pas de prix, une IMPRESSION en a un.**
+2. **Ce qui change avec la langue n'appartient pas à la CARTE.**
+
+> **Historique.** Le lot 1 a livré la première version (migration `0003`). La
+> migration `0004` l'a corrigée après confrontation aux données réelles des deux
+> jeux : la seconde décision en est issue, ainsi que les colonnes `attributes` et
+> la table `card_type`. Le détail des constats est en fin de document.
 
 ---
 
@@ -12,31 +19,98 @@ une IMPRESSION en a un.** Tout le reste en découle.
 
 ```mermaid
 erDiagram
-    TCG              ||--o{ EXPANSION        : "publie"
-    TCG              ||--o{ RARITY           : "définit"
-    TCG              ||--o{ FINISH           : "définit"
-    EXPANSION        ||--o{ CARD             : "contient"
-    RARITY           |o--o{ CARD             : "qualifie"
-    CARD             ||--o{ CARD_NAME        : "se nomme (1 par langue)"
-    CARD             ||--o{ PRINTING         : "se décline en"
-    FINISH           ||--o{ PRINTING         : "qualifie"
-    PRINTING         ||--o{ PRICE_SNAPSHOT   : "est coté"
-    PRICE_SOURCE     ||--o{ PRICE_SNAPSHOT   : "cote"
-    PRINTING         ||--o{ COLLECTION_ITEM  : "est possédé"
-    PRINTING         ||--o| WATCHED_PRINTING : "est surveillé"
+    TCG              ||--o{ EXPANSION          : "publie"
+    TCG              ||--o{ RARITY             : "définit"
+    TCG              ||--o{ FINISH             : "définit"
+    TCG              ||--o{ CARD_TYPE          : "définit"
+    EXPANSION        ||--o{ EXPANSION_NAME     : "se nomme (1 par langue)"
+    EXPANSION        ||--o{ CARD               : "contient"
+    RARITY           |o--o{ CARD               : "qualifie"
+    CARD_TYPE        |o--o{ CARD               : "catégorise"
+    CARD             ||--o{ CARD_LOCALIZATION  : "s'exprime (1 par langue)"
+    CARD             ||--o{ PRINTING           : "se décline en"
+    FINISH           ||--o{ PRINTING           : "qualifie"
+    PRINTING         ||--o{ PRICE_SNAPSHOT     : "est coté"
+    PRICE_SOURCE     ||--o{ PRICE_SNAPSHOT     : "cote"
+    PRINTING         ||--o{ COLLECTION_ITEM    : "est possédé"
+    PRINTING         ||--o| WATCHED_PRINTING   : "est surveillé"
 
     TCG { int id PK; string code UK; string name }
-    EXPANSION { int id PK; int tcg_id FK; string code; string name; string series; date release_date; int card_count_official; int card_count_total; jsonb external_ids }
-    CARD { int id PK; int expansion_id FK; string number; int number_sort; int rarity_id FK; string illustrator; text image_url; string image_phash; jsonb external_ids }
-    CARD_NAME { int id PK; int card_id FK; string language; string name; text name_normalized }
-    PRINTING { int id PK; int card_id FK; int finish_id FK; string language; jsonb external_ids }
+    EXPANSION { int id PK; int tcg_id FK; string code; string series; date release_date; int card_count_official; int card_count_total; text symbol_url; jsonb external_ids }
+    EXPANSION_NAME { int id PK; int expansion_id FK; string language; string name; text name_normalized; text logo_url }
+    CARD { int id PK; int expansion_id FK; string number; int number_sort; int rarity_id FK; int card_type_id FK; string illustrator; jsonb attributes; jsonb external_ids }
+    CARD_LOCALIZATION { int id PK; int card_id FK; string language; string name; text name_normalized; text image_url; string image_phash; jsonb attributes }
+    PRINTING { int id PK; int card_id FK; int finish_id FK; string language; jsonb external_ids; jsonb attributes }
     COLLECTION_ITEM { int id PK; int printing_id FK; int quantity; enum condition; numeric purchase_price; string purchase_currency; date purchase_date; text notes }
     PRICE_SNAPSHOT { int id PK; int printing_id FK; int source_id FK; date observed_on; timestamptz fetched_at; numeric amount; string currency; string price_type; jsonb raw }
     WATCHED_PRINTING { int id PK; int printing_id FK UK; text notes }
-    RARITY { int id PK; int tcg_id FK; string code; string label; int sort_order }
-    FINISH { int id PK; int tcg_id FK; string code; string label; int sort_order }
+    RARITY { int id PK; int tcg_id FK; string code; jsonb labels; int sort_order }
+    FINISH { int id PK; int tcg_id FK; string code; jsonb labels; int sort_order }
+    CARD_TYPE { int id PK; int tcg_id FK; string code; jsonb labels; int sort_order }
     PRICE_SOURCE { int id PK; string code UK; string label; string default_currency; text homepage_url }
 ```
+
+---
+
+## La seconde décision : ce que la langue change
+
+Le lot 1 supposait qu'une carte avait un nom par langue, et que tout le reste
+lui appartenait en propre. **C'est faux**, et la même carte demandée à TCGdex en
+`fr` puis en `en` le montre en une comparaison :
+
+| Champ | `fr` | `en` | |
+|---|---|---|---|
+| `name` | Fouinar | Furret | localisé |
+| `rarity` | Peu Commune | Uncommon | localisé |
+| `stage` | Niveau 1 | Stage1 | localisé |
+| `types` | Incolore | Colorless | localisé |
+| `evolveFrom` | Fouinette | Sentret | localisé |
+| **`image`** | `…/fr/swsh/swsh3/136` | `…/en/swsh/swsh3/136` | **localisé** |
+| `attacks[].name` | Mode Cool | Feelin' Fine | localisé |
+| `hp` | 110 | 110 | invariant |
+| `retreat` | 1 | 1 | invariant |
+| `dexId` | 162 | 162 | invariant |
+| `regulationMark` | D | D | invariant |
+| `illustrator` | tetsuya koizumi | tetsuya koizumi | invariant |
+
+L'image est le cas le plus lourd de conséquences. Une carte française et son
+équivalent anglais partagent l'illustration, mais **pas l'image imprimée** : le
+nom, le texte et les attaques y figurent. Le pHash du lot 7 en découle
+directement — photographier une carte française et la comparer aux empreintes
+anglaises ferait chuter le score de confiance sans cause visible dans le code.
+`image_url` et `image_phash` vivent donc dans `CARD_LOCALIZATION`.
+
+Même raisonnement pour `EXPANSION` : « Ténèbres Embrasées » et « Darkness
+Ablaze » sont la même extension. Élire l'une des deux comme nom principal aurait
+figé la langue du premier import, d'où `EXPANSION_NAME`.
+
+---
+
+## Les attributs de jeu : `attributes` en JSONB
+
+Trois tables portent une colonne `attributes`, et chacune répond à une question
+différente.
+
+| Table | Contenu | Exemple Pokémon | Exemple Riftbound |
+|---|---|---|---|
+| `CARD` | ce qui ne dépend ni de la langue ni de la finition | `{"hp": 110, "retreat": 1, "dexId": [162]}` | `{"domain": "Fury", "energyCost": "5", "might": "5"}` |
+| `CARD_LOCALIZATION` | ce qui change avec la langue | `{"stage": "Niveau 1", "attacks": [...]}` | `{"description": "ACCELERATE …"}` |
+| `PRINTING` | ce qui distingue une impression sans être sa finition | `{"size": "Jumbo"}` | — |
+
+**Pourquoi du JSONB et pas des colonnes.** Les deux jeux n'ont pas un seul
+attribut en commun — c'est vérifié par un test, pas supposé. Des colonnes
+typées auraient donné une table `card` à moitié vide pour chaque jeu, et une
+migration à chaque mécanique nouvelle (Pokémon en ajoute à presque chaque bloc).
+
+**Pourquoi ce n'est pas la réponse à tout.** La règle du modèle est :
+
+> **JSONB pour ce qu'on affiche, table de référence pour ce qu'on interroge.**
+
+La rareté et le type de carte servent à filtrer (« mes cartes rares », « mes
+champions ») : ce sont des tables, jointes et indexées. Le nombre de points de
+vie s'affiche : c'est du JSONB. Un index GIN sur `card.attributes` garde la
+porte ouverte au cas où un attribut devrait finalement servir à filtrer — c'est
+d'ailleurs vérifié par un test (`domain = Fury`).
 
 ---
 
@@ -47,7 +121,7 @@ Prenons Dracaufeu 4/102 du Set de Base.
 | Niveau | Ce que c'est | Combien d'objets |
 |---|---|---|
 | `CARD` | Dracaufeu, n° 4 du Set de Base, illustré par Mitsuhiro Arita | **1** |
-| `CARD_NAME` | « Dracaufeu » (fr), « Charizard » (en), « リザードン » (ja) | **1 par langue** |
+| `CARD_LOCALIZATION` | « Dracaufeu » (fr), « Charizard » (en), « リザードン » (ja) | **1 par langue** |
 | `PRINTING` | la holo anglaise, la holo française, la 1st edition anglaise… | **1 par (finition, langue)** |
 | `COLLECTION_ITEM` | mes 2 exemplaires en NM achetés 180 € | **1 par lot acheté** |
 
@@ -56,12 +130,12 @@ la même carte et n'ont pas la même valeur — parfois d'un facteur dix. Rattac
 la cote à `CARD` rendrait toute valorisation fausse, sans rattrapage possible.
 
 Symétriquement, le nom ne s'attache pas non plus à `CARD` : il vit dans
-`CARD_NAME`, une ligne par langue. C'est ce qui permet à « dracaufeu » et à
+`CARD_LOCALIZATION`, une ligne par langue. C'est ce qui permet à « dracaufeu » et à
 « charizard » de retomber sur la même carte au lot 3.
 
 ---
 
-## Recherche floue : comment `NOM_LOCALISE` est indexé
+## Recherche floue : comment `CARD_LOCALIZATION` est indexé
 
 La recherche doit être insensible à la casse, aux accents, et tolérer les
 fautes de frappe. Trois pièces s'emboîtent :
@@ -84,7 +158,7 @@ AS $$ SELECT unaccent('unaccent'::regdictionary, $1) $$;
 > il faudrait un `REINDEX` et un `UPDATE` des colonnes générées. C'est le
 > compromis standard pour indexer une recherche insensible aux accents.
 
-**2. Une colonne générée** `card_name.name_normalized` :
+**2. Une colonne générée** `card_localization.name_normalized` :
 
 ```sql
 name_normalized text GENERATED ALWAYS AS (lower(immutable_unaccent(name))) STORED
@@ -97,8 +171,8 @@ diverger du nom, quel que soit le chemin d'écriture — import, API, ou `psql`
 **3. Un index GIN trigram** sur cette colonne, et non sur `name` :
 
 ```sql
-CREATE INDEX ix_card_name_normalized_trgm
-    ON card_name USING gin (name_normalized gin_trgm_ops);
+CREATE INDEX ix_card_localization_normalized_trgm
+    ON card_localization USING gin (name_normalized gin_trgm_ops);
 ```
 
 Indexer `name` aurait été inutile : une recherche sur la forme sans accent
@@ -117,20 +191,46 @@ similarity('charizard', 'sharizard')  = 0.538   → trouvé
 
 ---
 
-## Les trois tables de référence, et pourquoi ce ne sont pas des ENUM
+## Les quatre tables de référence, et pourquoi ce ne sont pas des ENUM
 
-`RARITY`, `FINISH` et `PRICE_SOURCE` sont des tables, pas des types `ENUM`.
+`RARITY`, `FINISH`, `CARD_TYPE` et `PRICE_SOURCE` sont des tables, pas des
+types `ENUM`.
 
-Pour `FINISH`, c'est le point le plus sensible du lot : **on ne connaîtra le
-vocabulaire réel des finitions qu'au lot 2**, après exploration de TCGdex.
-Riftbound en apportera d'autres encore. Un `ENUM` imposerait une migration à
-chaque découverte ; une table absorbe une nouvelle valeur par un `INSERT`.
+Pour `FINISH`, c'est le point le plus sensible : le vocabulaire réel de TCGdex
+est `normal`, `reverse`, `holo`, `firstEdition`, `wPromo` — cinq valeurs, mais
+rien ne garantit qu'il n'en viendra pas d'autres, et Riftbound distingue en plus
+l'art alternatif. Un `ENUM` imposerait une migration à chaque découverte ; une
+table absorbe une nouvelle valeur par un `INSERT`.
 
-`RARITY` suit la même logique : Pokémon en compte des dizaines, et la liste
-s'allonge à chaque extension.
+`RARITY` suit la même logique : TCGdex en renvoie une trentaine rien qu'en
+français, et la liste s'allonge à chaque extension.
 
-Les deux sont **rattachées à un TCG** (`UNIQUE (tcg_id, code)`) : chaque jeu
+`CARD_TYPE` est arrivée avec Riftbound. Pokémon a trois natures de carte
+(Pokémon, Dresseur, Énergie), Riftbound en a huit (Unit, Spell, Champion Unit,
+Legend, Gear, Battlefield, Rune, Signature Spell) — **aucune en commun**. C'est
+une table et non une clé de `attributes` parce que le lot 3 doit filtrer dessus.
+
+Les trois sont **rattachées à un TCG** (`UNIQUE (tcg_id, code)`) : chaque jeu
 déclare son propre vocabulaire, y compris son propre « normal ».
+
+### Un `code` invariant, des `labels` par langue
+
+Les trois portent un `code` et une colonne `labels` en JSONB :
+
+```json
+{"fr": "Peu Commune", "en": "Uncommon"}
+```
+
+TCGdex renvoie la rareté **traduite** : « Peu Commune » en français, « Uncommon »
+en anglais, pour la même carte. Un libellé unique aurait figé la langue du
+premier import — et un import français aurait rendu impossible d'afficher
+l'interface en anglais. Le `code`, lui, ne dépend d'aucune langue : c'est la clé
+d'upsert de l'import.
+
+Ici le JSONB est préférable à une table satellite : ces vocabulaires comptent
+quelques dizaines de lignes, et on ne fait jamais de recherche textuelle dessus.
+`EXPANSION_NAME` a fait le choix inverse, parce qu'on cherche par nom
+d'extension et qu'il faut donc un index trigram.
 
 À l'inverse, `condition` **est** un `ENUM` PostgreSQL (`MT`, `NM`, `EX`, `GD`,
 `LP`, `PL`, `PO`). L'échelle Cardmarket est fermée et stable depuis des
@@ -207,7 +307,7 @@ Toutes ces règles ont été vérifiées en SQL (voir « Vérification » plus b
 
 Le choix n'est pas uniforme, et c'est volontaire :
 
-- `CARD_NAME`, `PRINTING`, `PRICE_SNAPSHOT` → **CASCADE**. Ce sont des données
+- `CARD_LOCALIZATION`, `PRINTING`, `PRICE_SNAPSHOT` → **CASCADE**. Ce sont des données
   dérivées du référentiel ; si la carte disparaît, elles n'ont plus de sens.
 - `COLLECTION_ITEM` → **RESTRICT**. Ma collection n'est pas dérivée : c'est la
   seule donnée que je saisis moi-même et que personne ne peut reconstruire. Un
@@ -278,29 +378,54 @@ prix, est partagé par nature et ne bouge pas.
 il faudrait un `grading_company` et un `grade` sur `COLLECTION_ITEM`. Rien dans
 le modèle actuel ne s'y oppose.
 
-**Riftbound n'est pas modélisé, et n'a pas à l'être.** Il lui faut une ligne
-dans `TCG`, ses propres `FINISH` et `RARITY`, et un import qui remplisse
-`EXPANSION` / `CARD` / `CARD_NAME`. Aucune migration de schéma.
+**Riftbound est modélisé, et sans table qui lui soit propre.** Il lui faut une
+ligne dans `TCG`, ses propres `FINISH`, `RARITY` et `CARD_TYPE`, et un import qui
+remplisse `EXPANSION` / `CARD` / `CARD_LOCALIZATION` — ce que la vérification
+ci-dessous fait sur une carte réelle. Ajouter un troisième jeu ne demandera
+aucune migration.
 
-> **Nuance apportée le 15/09/2026, après confrontation aux données réelles.**
-> C'est exact pour la *structure*, mais les deux jeux portent des attributs que
-> `CARD` n'a nulle part où ranger : `domain`, `energyCost`, `powerCost` et
-> `might` pour Riftbound, type, PV et stade pour Pokémon. Les normaliser en
-> colonnes est exclu — c'est précisément ce que `RARITY` et `FINISH` évitent en
-> étant rattachées à `TCG`. Une colonne `attributes` en JSONB sur `CARD`
-> suffirait, et c'est la seule migration que le multi-TCG semble encore
-> réclamer. **À trancher avant le lot 2** : sans elle, l'import Pokémon perd ces
-> données en silence et devra être rejoué.
+**Le texte de règles n'a pas de table dédiée**, il vit dans
+`card_localization.attributes`. Tant qu'on ne cherche pas *dans* le texte des
+cartes, c'est suffisant. Le jour où « trouve-moi toutes les cartes qui parlent
+de pioche » devient un besoin, il faudra une colonne `rules_text` avec son index
+plein texte — et ce sera une vraie migration.
+
+**Pas de cartes gradées** ni de multi-utilisateurs : voir plus haut.
 
 ---
 
 ## Vérification
 
-Le schéma a été validé sur la base réelle : cycle `upgrade` → `downgrade` →
-`upgrade` complet, puis douze tests SQL dans une transaction annulée (colonne
-générée, recherche trigram avec fautes, deux prix pour deux finitions d'une
-même carte, et les huit contraintes du tableau ci-dessus, chacune vérifiée en
-constatant que la base **refuse** bien l'écriture).
+Le schéma a été validé deux fois sur la base réelle.
+
+**Lot 1 (migration `0003`)** : cycle `upgrade` → `downgrade` → `upgrade`
+complet, puis douze tests SQL dans une transaction annulée (colonne générée,
+recherche trigram avec fautes, deux prix pour deux finitions d'une même carte,
+et les huit contraintes du tableau ci-dessus, chacune vérifiée en constatant que
+la base **refuse** bien l'écriture).
+
+**Migration `0004`** : même cycle `upgrade` → `downgrade` → `upgrade`, puis onze
+vérifications sur des **données réelles des deux jeux** — Fouinar / Furret
+(`swsh3-136`) chargé depuis un TCGdex auto-hébergé en `fr` et en `en`, et
+Blazing Scorcher (`001/298`, domaine Fury) depuis le jeu de données Riftbound —
+le tout dans une transaction annulée :
+
+| | Vérification |
+|---|---|
+| 1-2 | « fouinar » et « FURRET » retombent sur la même carte |
+| 3 | FR et EN sont deux localisations d'une seule carte |
+| 4 | **l'image diffère entre FR et EN** — la raison d'être de `CARD_LOCALIZATION` |
+| 5 | `hp`, `retreat` et `dexId` sont bien identiques dans les deux langues |
+| 6 | normale et reverse forment deux impressions distinctes |
+| 7 | chaque impression porte ses identifiants Cardmarket et TCGplayer |
+| 8 | les deux TCG coexistent dans les mêmes tables |
+| 9 | leurs vocabulaires de type sont disjoints (`Pokemon` / `Unit`) |
+| 10 | leurs `attributes` n'ont **aucune clé commune** |
+| 11 | le filtre JSONB `domain = Fury` fonctionne via l'index GIN |
+
+Les points 9 et 10 sont les plus parlants : deux jeux qui ne partagent aucun
+vocabulaire ni aucun attribut tiennent dans les mêmes tables, sans colonne
+inutilisée d'un côté ou de l'autre.
 
 ```bash
 docker compose exec api alembic upgrade head
