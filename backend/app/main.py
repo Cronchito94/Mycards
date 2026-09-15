@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import cards, catalog, health
+from app.api.routes import cards, catalog, collection, health
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -38,6 +38,7 @@ app.include_router(health.router)
 # clients tiers doivent pouvoir suivre une évolution de contrat sans casse.
 app.include_router(catalog.router, prefix=API_PREFIX)
 app.include_router(cards.router, prefix=API_PREFIX)
+app.include_router(collection.router, prefix=API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
