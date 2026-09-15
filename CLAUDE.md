@@ -15,7 +15,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | 2 | Import référentiel Pokémon (TCGdex) | ✅ terminé |
 | 2 bis | Import référentiel Riftbound | ⏳ à faire |
 | 3 | API de recherche | ✅ terminé |
-| 4 | Gestion de la collection | ⏳ à faire |
+| 4 | Gestion de la collection | ✅ terminé |
 | 5 | Prix et historique | ⏳ à faire |
 | 6 | Front PWA | ⏳ à faire |
 | 7 | Reconnaissance par photo | ⏳ à faire |
@@ -58,12 +58,17 @@ docker compose exec api python -m app.importers.cli --languages en,fr
 docker compose exec api python -m app.importers.cli --expansions swsh3   # essai
 docker compose exec api python -m app.importers.cli --force              # tout refaire
 
+# Collection (lot 4)
+curl 'localhost:8000/api/v1/collection/items?q=pikachu'
+curl 'localhost:8000/api/v1/collection/stats'
+curl 'localhost:8000/api/v1/collection/completion?tcg=pokemon'
+
 # API de recherche (lot 3)
 curl 'localhost:8000/api/v1/cards?q=dracaufeu'
 curl 'localhost:8000/api/v1/cards/809'
 open http://localhost:8000/docs          # doc interactive
 
-# Tests — 29, dont ceux de l'API qui ont besoin de la base.
+# Tests — 43, dont ceux de l'API qui ont besoin de la base.
 # Les tests sont montés dans le conteneur, pas embarqués dans l'image.
 docker compose exec api pip install pytest pytest-asyncio   # une fois
 docker compose exec api python -m pytest tests/ -q
@@ -237,6 +242,35 @@ sont échappés — l'antislash en premier, sinon il ré-échappe le reste.
 change avec la langue, un code non. Même règle pour toutes les sorties : ce
 qui est traduit sort en dictionnaire par langue, jamais résolu par le serveur.
 
+### Collection : on ne regroupe jamais par nom
+
+« Pikachu » désigne des dizaines de cartes. La clé de regroupement est
+l'**impression** — carte précise, extension précise, finition et langue
+précises. Dix Pikachu dont cinq identiques donnent quatre entrées, dont une à
+5. Le nom n'est jamais un identifiant, nulle part.
+
+### Ajouter : incrémenter sans prix, créer un lot avec prix
+
+Un ajout sans prix fusionne avec la ligne existante de même impression et même
+état (`200`) : c'est le geste courant. Un ajout **avec** prix crée un lot
+distinct (`201`), parce qu'un prix de revient lui est propre et que le
+fusionner le perdrait. `unit_purchase_price` est un prix **unitaire** — la
+colonne a été renommée en migration `0006` pour que le nom porte l'info.
+
+### La vente est une table séparée, et l'historique survit à la collection
+
+Deux raisons : une vente partielle ne peut pas se représenter par une ligne
+« à moitié vendue », et vendre son dernier exemplaire supprime la ligne de
+collection alors que la vente doit rester. `collection_item_id` est nullable,
+en `SET NULL`, et n'est renseigné que si un seul lot a été touché **et qu'il
+survit** — pointer un lot vidé dans la même transaction violerait la FK.
+
+### Aucune conversion de devise, jamais
+
+Tous les totaux sont rendus **par devise**. Un taux inventé produirait un
+chiffre faux et crédible. Les exemplaires sans prix saisi sont comptés à part
+(`items_without_price`) : ils ne valent pas zéro, leur prix est inconnu.
+
 ### Dockerfile : stub `app/` avant le `pip install`
 
 Les dépendances s'installent avant la copie du code pour garder le layer en
@@ -309,6 +343,27 @@ ouvert, à traiter avec le front du lot 6 sur des cas réels :
   bruit — à régler sur des recherches réelles, pas à l'aveugle.
 - Sous 3 caractères l'index trigram ne sert plus (parcours séquentiel, ~10 ms
   sur 45 000 lignes). Laissé passer plutôt qu'interdit.
+
+### Lot 4 — Collection ✅ fait
+
+Documenté dans `docs/COLLECTION.md`. Décisions arbitrées avec l'utilisateur le
+15/09/2026 :
+
+- Les **ventes** ne figuraient pas à la spec : ajoutées sur demande, avec la
+  plateforme de vente. Tables `collection_sale` et `sale_platform`.
+- La **plus-value** a été écartée : elle se lit sur les deux totaux.
+- La **complétion** compte une carte quelle que soit sa langue (FR, EN, JP…),
+  avec `language` en filtre optionnel. Deux dénominateurs rendus : `official`
+  (total imprimé) et `total` (cartes secrètes comprises).
+- Seuls **FR et EN** sont en base. Pour CN/ES/JP : relancer l'import du lot 2
+  avec `--languages en,fr,ja,es`.
+
+Reste ouvert :
+
+- Frais de port et commissions de vente non modélisés : les ajouter à moitié
+  fausserait le total des ventes.
+- Cartes gradées (PSA, BGS) : axe distinct de `condition`, pas au schéma.
+- Annuler une vente ne remet rien en collection — on ne sait pas dans quel lot.
 
 ### Lot 5 — les sources de prix ont changé depuis la rédaction de la spec
 

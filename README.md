@@ -72,6 +72,7 @@ pas un simple « je suis en vie ».
 ├── docs/SCHEMA.md           # schéma de données commenté
 ├── docs/IMPORT.md           # import du référentiel et constats sur TCGdex
 ├── docs/API.md              # API de recherche
+├── docs/COLLECTION.md       # collection, ventes et statistiques
 ├── CLAUDE.md                # conventions, commandes, état d'avancement
 └── backend/
     ├── Dockerfile
@@ -98,7 +99,7 @@ pas un simple « je suis en vie ».
 - [x] **Lot 2** — Import du référentiel Pokémon ([`docs/IMPORT.md`](docs/IMPORT.md))
 - [ ] Lot 2 bis — Import du référentiel Riftbound
 - [x] **Lot 3** — API de recherche ([`docs/API.md`](docs/API.md))
-- [ ] Lot 4 — Gestion de la collection
+- [x] **Lot 4** — Gestion de la collection ([`docs/COLLECTION.md`](docs/COLLECTION.md))
 - [ ] Lot 5 — Prix et historique
 - [ ] Lot 6 — Front PWA
 - [ ] Lot 7 — Reconnaissance de carte par photo
