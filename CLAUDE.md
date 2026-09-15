@@ -12,7 +12,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | 0 | Fondations (compose, FastAPI, Alembic) | ✅ terminé |
 | 1 | Schéma de données multi-TCG | ✅ terminé |
 | 1 bis | Schéma : localisation, attributs de jeu, types de carte | ✅ terminé |
-| 2 | Import référentiel Pokémon (TCGdex) | ⏳ à faire |
+| 2 | Import référentiel Pokémon (TCGdex) | ✅ terminé |
 | 2 bis | Import référentiel Riftbound | ⏳ à faire |
 | 3 | API de recherche | ⏳ à faire |
 | 4 | Gestion de la collection | ⏳ à faire |
@@ -52,6 +52,14 @@ docker compose exec api alembic history
 docker compose exec api alembic upgrade head
 docker compose exec api alembic downgrade -1
 docker compose exec api alembic revision --autogenerate -m "message"
+
+# Import du référentiel (lot 2) — idempotent, relançable
+docker compose exec api python -m app.importers.cli --languages en,fr
+docker compose exec api python -m app.importers.cli --expansions swsh3   # essai
+docker compose exec api python -m app.importers.cli --force              # tout refaire
+
+# Tests (le mapping TCGdex est pur, donc testable sans base ni réseau)
+cd backend && PYTHONPATH=. python -m pytest tests/ -q
 
 # Vérifications
 curl -s http://localhost:8000/health
@@ -98,9 +106,16 @@ cd backend && pip install -e ".[dev]" && ruff check app
 
 ### Avant tout appel à une API tierce
 
-Vérifier les conditions d'utilisation (TCGdex, pokemontcg.io, Cardmarket) et
-signaler toute restriction d'usage ou de redistribution. **Pas encore fait —
-à traiter au début du lot 2.**
+Vérifier les conditions d'utilisation et signaler toute restriction d'usage ou
+de redistribution.
+
+- **TCGdex** : vérifié le 15/09/2026. Licence **MIT**, code *et* base de
+  données. Redistribution autorisée, aucune limite de débit publiée. Le dépôt
+  précise n'être ni produit ni affilié à Nintendo / The Pokémon Company. Rien
+  n'entrave notre usage. Détail dans `docs/IMPORT.md`.
+- ⚠️ La licence MIT couvre la **base**, pas les **images** : elles relèvent du
+  droit des éditeurs. On ne stocke que des URLs, jamais les fichiers.
+- **pokemontcg.io / Cardmarket** : à traiter au lot 5 (voir points ouverts).
 
 ---
 
@@ -161,6 +176,41 @@ dérivées du référentiel. `collection_item` est en `RESTRICT` : c'est la seul
 donnée non reconstructible, un réimport qui la menacerait doit échouer
 bruyamment plutôt que l'effacer en silence.
 
+### TCGdex est auto-hébergé, pas consommé en ligne
+
+Le `docker-compose.yml` embarque `tcgdex/server:edge` (MIT, données incluses).
+Pas de limite de débit, pas de dépendance réseau à l'import, et l'inspection
+TLS de certains postes ne casse plus rien. L'import complet tombe à 8 minutes.
+`CI=true` est **obligatoire** sur ce conteneur — sans lui le port 3000 ne
+s'ouvre jamais. Voir `docs/IMPORT.md`.
+
+### La première langue importée fait foi pour l'invariant
+
+TCGdex renvoie la rareté **traduite**. Importer le français en premier
+donnerait un code de rareté `peu_commune` et figerait l'interface. D'où
+`--languages en,fr` : l'anglais porte les codes, les autres langues n'ajoutent
+que des localisations et des libellés, qui **fusionnent** dans `labels`.
+
+102 cartes n'existent qu'en français : elles prennent le français pour
+référence, faute de mieux.
+
+### Finitions : union des deux descriptions de TCGdex
+
+`variants` (booléens, seule source de `firstEdition`) et `variants_detailed`
+(seule source de `lenticular`, `metal`, `jumbo` et des identifiants de prix)
+**divergent sur 13 % des cartes**. On prend l'union.
+
+Trois constats mesurés, à ne pas réapprendre :
+
+- `variantId` n'est **pas** un identifiant d'impression : `endfynwn4n10gzq` est
+  porté par 8 914 cartes, `generated` par 8 861. Jamais utilisé comme clé.
+- Les libellés de finition sont traduits (`Métal` / `metal`) : le code est
+  normalisé et résolu contre une liste fermée. Un type inconnu devient un
+  avertissement, jamais un code inventé.
+- 1 762 cartes portent deux entrées de même finition avec des identifiants
+  Cardmarket différents. Une seule impression est créée, et `external_ids`
+  conserve **tous** les identifiants en liste.
+
 ### Dockerfile : stub `app/` avant le `pip install`
 
 Les dépendances s'installent avant la copie du code pour garder le layer en
@@ -189,14 +239,20 @@ rm backend/docker-entrypoint.sh && git checkout -- backend/docker-entrypoint.sh
 
 ## Points ouverts
 
-### Lot 2 — TCGdex
+### Lot 2 — TCGdex ✅ fait
 
-- Explorer et **montrer la structure réelle** renvoyée par TCGdex avant d'écrire
-  le moindre mapping. Les finitions réelles iront dans la table `finish` (un
-  `INSERT`, pas une migration) ; `rarity` se remplit de la même façon, au fil de
-  l'import.
-- L'idempotence de l'import s'appuie sur `external_ids` (JSONB indexé GIN) sur
-  `expansion`, `card` et `printing`.
+Référentiel en base : 23 649 cartes, 64 301 impressions, 221 extensions.
+Tout est documenté dans `docs/IMPORT.md`. Reste ouvert :
+
+- Une carte de l'extension `exu` a pour identifiant littéral `?` et renvoie 404
+  dans les deux langues. Anomalie **en amont**, signalée au rapport d'import.
+- `w_promo` existe dans le vocabulaire TCGdex mais n'est jamais vrai : aucune
+  finition créée. Revérifier après une mise à jour de l'image.
+- Les `labels` de `first_edition` sont vides — la source n'en fournit pas.
+- L'idempotence s'appuie sur les clés naturelles, pas sur `external_ids` comme
+  anticipé : `(extension, numéro)` pour une carte, `(carte, finition, langue)`
+  pour une impression. Plus simple et plus sûr.
+
 - **TCGdex peut être auto-hébergé**, et c'est probablement le bon choix : image
   `tcgdex/server:edge` (MIT, ~81 Mo, amd64 + arm64), données embarquées, aucune
   base externe. Import sans limite de débit ni dépendance réseau. Vérifié le
@@ -215,9 +271,11 @@ rm backend/docker-entrypoint.sh && git checkout -- backend/docker-entrypoint.sh
 
 ### Lot 3
 
-- Vérifier que l'index `ix_card_name_normalized_trgm` est réellement utilisé
-  (`EXPLAIN ANALYZE`) une fois le référentiel chargé — sur une table quasi vide,
-  PostgreSQL l'ignore à raison.
+- ✅ L'index trigram est bien utilisé une fois le référentiel chargé, vérifié le
+  15/09/2026 sur 45 528 lignes : `Bitmap Index Scan on
+  ix_card_localization_normalized_trgm`, 1,3 ms. Point clos.
+- Les données satisfont déjà le critère de fin du lot : « dracaufeu » et
+  « charizard » retombent sur les mêmes `card.id`. Reste à exposer l'API.
 
 ### Lot 5 — les sources de prix ont changé depuis la rédaction de la spec
 

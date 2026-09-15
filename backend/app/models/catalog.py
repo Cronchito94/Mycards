@@ -304,10 +304,19 @@ class Printing(TimestampMixin, Base):
     )
     language: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
 
-    # Correspondance vers la clé de prix de chaque source. TCGdex expose, dans
-    # `variants_detailed`, un `variantId` stable et les identifiants Cardmarket
-    # et TCGplayer **par variante** — exactement la granularité d'une Printing :
-    #   {"tcgdex": "cm4kqul3x1bwlz1f", "cardmarket": 483559, "tcgplayer": 219333}
+    # Correspondance vers la clé de prix de chaque source :
+    #   {"cardmarket": [483559], "tcgplayer": [219333],
+    #    "tcgdexVariantIds": ["cm4kqul3x1bwlz1f"]}
+    #
+    # Des **listes**, et non des scalaires : 1 762 cartes du corpus portent
+    # plusieurs entrées de même finition avec des identifiants Cardmarket
+    # différents (relevé du 15/09/2026). Le schéma n'admet qu'une impression
+    # par (carte, finition, langue), donc on conserve tous les identifiants
+    # plutôt que d'en perdre en silence — le lot 5 tranchera lequel coter.
+    #
+    # ⚠️ `variantId` n'est PAS un identifiant d'impression malgré son nom :
+    # `endfynwn4n10gzq` est porté par 8 914 cartes et la valeur littérale
+    # `generated` par 8 861. Il est gardé pour traçabilité, jamais comme clé.
     # Côté Riftbound, chaque carte porte son `tcgplayer.id`.
     external_ids: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"

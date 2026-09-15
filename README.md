@@ -69,6 +69,7 @@ pas un simple « je suis en vie ».
 ├── .env.example             # modèle de configuration (le .env est gitignoré)
 ├── docs/SPEC.md             # spécification et découpage en lots
 ├── docs/SCHEMA.md           # schéma de données commenté
+├── docs/IMPORT.md           # import du référentiel et constats sur TCGdex
 ├── CLAUDE.md                # conventions, commandes, état d'avancement
 └── backend/
     ├── Dockerfile
@@ -81,6 +82,7 @@ pas un simple « je suis en vie ».
         ├── core/config.py   # settings pydantic
         ├── db/              # base déclarative + sessions
         ├── models/          # modèles ORM (lot 1)
+        ├── importers/       # import du référentiel (lot 2)
         └── api/routes/      # endpoints
 ```
 
@@ -89,7 +91,7 @@ pas un simple « je suis en vie ».
 - [x] **Lot 0** — Fondations
 - [x] **Lot 1** — Schéma de données ([`docs/SCHEMA.md`](docs/SCHEMA.md))
 - [x] **Lot 1 bis** — Localisation complète, attributs de jeu, types de carte
-- [ ] Lot 2 — Import du référentiel Pokémon (TCGdex)
+- [x] **Lot 2** — Import du référentiel Pokémon ([`docs/IMPORT.md`](docs/IMPORT.md))
 - [ ] Lot 2 bis — Import du référentiel Riftbound
 - [ ] Lot 3 — API de recherche
 - [ ] Lot 4 — Gestion de la collection
