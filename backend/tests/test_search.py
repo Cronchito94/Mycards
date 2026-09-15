@@ -60,17 +60,6 @@ class TestCardFilters:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-async def client():
-    import httpx
-
-    from app.main import app
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-
-
 @pytestmark_db
 @pytest.mark.asyncio
 class TestSearchApi:

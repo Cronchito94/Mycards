@@ -16,7 +16,7 @@ La spec de référence est dans `docs/SPEC.md`.
 | 2 bis | Import référentiel Riftbound | ⏳ à faire |
 | 3 | API de recherche | ✅ terminé |
 | 4 | Gestion de la collection | ✅ terminé |
-| 5 | Prix et historique | ⏳ à faire |
+| 5 | Prix et historique | ✅ terminé |
 | 6 | Front PWA | ⏳ à faire |
 | 7 | Reconnaissance par photo | ⏳ à faire |
 
@@ -57,6 +57,12 @@ docker compose exec api alembic revision --autogenerate -m "message"
 docker compose exec api python -m app.importers.cli --languages en,fr
 docker compose exec api python -m app.importers.cli --expansions swsh3   # essai
 docker compose exec api python -m app.importers.cli --force              # tout refaire
+
+# Prix (lot 5) — ne relève que les impressions possédées ou surveillées
+docker compose exec api python -m app.pricing.cli --dry-run   # simulation
+docker compose exec api python -m app.pricing.cli             # relevé réel
+curl 'localhost:8000/api/v1/collection/valuation'
+curl 'localhost:8000/api/v1/collection/valuation/history?days=30'
 
 # Collection (lot 4)
 curl 'localhost:8000/api/v1/collection/items?q=pikachu'
@@ -274,6 +280,29 @@ Tous les totaux sont rendus **par devise**. Un taux inventé produirait un
 chiffre faux et crédible. Les exemplaires sans prix saisi sont comptés à part
 (`items_without_price`) : ils ne valent pas zéro, leur prix est inconnu.
 
+### Les prix viennent de TCGdex, pas d'une API tierce
+
+Le serveur auto-hébergé sert les cotes Cardmarket (EUR) et TCGplayer (USD),
+sans clé ni quota. Désactivé par défaut (`TCGDEX_CI=true`) car le démarrage
+passe de 25 s à 5-10 min. `TCGCSV_USER_AGENT` est **obligatoire** dès qu'on
+active les prix — sans elle le serveur démarre en apparence mais n'écoute pas.
+
+### Cardmarket ne sépare pas ses cotes par variante
+
+Les entrées `normal` et `reverse` d'une carte portent un bloc **identique**,
+même `idProduct`. La reverse se lit dans les champs suffixés `-holo`. Appliquer
+`trend` aux deux sous-évaluerait toutes les reverse de moitié (0,09 € au lieu
+de 0,19 € sur `swsh3-136`). TCGplayer, lui, sépare proprement.
+
+Métrique canonique : **`trend`**. Tout le bloc est conservé dans
+`price_snapshot.raw` — changer d'avis ne demandera pas de réinterroger.
+
+### La courbe de valorisation est une courbe de prix
+
+Elle applique les cotes passées à la collection **d'aujourd'hui**. Elle ne dit
+pas ce que valait la collection à l'époque : le schéma ne garde aucun
+historique des possessions, une suppression ne laissant aucune trace.
+
 ### Dockerfile : stub `app/` avant le `pip install`
 
 Les dépendances s'installent avant la copie du code pour garder le layer en
@@ -321,14 +350,13 @@ Tout est documenté dans `docs/IMPORT.md`. Reste ouvert :
   base externe. Import sans limite de débit ni dépendance réseau. Vérifié le
   15/09/2026 : démarrage en ~25 s, `/v2/fr/sets` renvoie 200 extensions en
   français. À trancher au lot 2 ; sinon `https://api.tcgdex.net/v2`.
-- Si on l'auto-héberge, **`CI=true` est obligatoire** sur le conteneur. Sans
-  cette variable, le serveur télécharge les tarifs Cardmarket et TCGplayer
-  *avant* d'ouvrir son port HTTP ; derrière une inspection TLS (WARP, proxy
-  d'entreprise) ces appels échouent en boucle (`SELF_SIGNED_CERT_IN_CHAIN`) et
-  le port 3000 n'est jamais ouvert. Le conteneur paraît sain, les logs affichent
-  même « 🚀 Server ready », mais `/proc/net/tcp` ne montre aucun socket en
-  écoute. `CI=true` saute ce chargement : c'est l'échappatoire prévue en amont
-  (`server/src/index.ts`), et les prix nous concernent au lot 5, pas ici.
+- ⚠️ **CORRIGÉ le 15/09/2026 — la note précédente était fausse.** `CI=true`
+  n'est **pas** une parade à l'inspection TLS. Le port ne s'ouvrait pas parce
+  que `TCGCSV_USER_AGENT` manquait : son absence lève une exception qui
+  interrompt la séquence de démarrage. Le serveur affiche « 🚀 Server ready »
+  et n'écoute jamais — le log ment. WARP n'y était pour rien.
+  Renseigner `TCGCSV_USER_AGENT` suffit, et les prix se chargent alors très
+  bien. Voir `docs/PRICING.md`.
 - L'amont ne publie **aucun tag versionné** (seulement `edge` et
   `branch-master`) : revérifier que l'API répond après chaque `pull`.
 
@@ -368,10 +396,33 @@ Reste ouvert :
 - Cartes gradées (PSA, BGS) : axe distinct de `condition`, pas au schéma.
 - Annuler une vente ne remet rien en collection — on ne sait pas dans quel lot.
 
-### Lot 5 — les sources de prix ont changé depuis la rédaction de la spec
+### Lot 5 — Prix et historique ✅ fait
 
-État vérifié le 15/09/2026. `docs/SPEC.md` désigne encore pokemontcg.io comme
-source du lot 5 : **à rediscuter avant de coder.**
+Source retenue : **le serveur TCGdex auto-hébergé**, qui sert les cotes
+Cardmarket et TCGplayer sans clé ni quota. Mesuré le 15/09/2026. Tout est dans
+`docs/PRICING.md`.
+
+⚠️ **Les CGU n'ont PAS pu être vérifiées** : `cardmarket.com` et `tcgcsv.com`
+sont inaccessibles depuis l'environnement de développement (refus de politique
+réseau). À faire **avant toute ouverture publique de l'app** — afficher des
+cotes Cardmarket à des tiers est une redistribution de données, et le cadre
+n'est pas le même qu'en usage personnel.
+
+Reste ouvert :
+
+- Le mapping `-holo` est vérifié sur une carte normal + reverse. Deux cas ne
+  l'ont pas été : une carte holo **sans** version normale (hypothèse : `trend`
+  convient), et `first_edition`, qui n'a aucun identifiant Cardmarket et
+  remonte donc en « sans cote ». `--dry-run` sert à trancher sur de vraies
+  cartes.
+- Une seconde implémentation est identifiée mais non écrite : lire directement
+  le dump Cardmarket (`downloads.s3.cardmarket.com/productCatalog/priceGuide/
+  price_guide_6.json`, un JSON public repéré dans les logs de TCGdex). Elle
+  supprimerait la dépendance au démarrage fragile du serveur TCGdex.
+- Aucun ordonnanceur n'est branché : le job se lance à la main. Un `cron` sur
+  le serveur de déploiement suffira.
+
+### Anciennes notes sur les sources de prix — conservées pour mémoire
 
 - **pokemontcg.io a été absorbée par Scrydex** et s'est fortement dégradée
   (mesures publiques : ~59 % d'erreurs, ~8 s de latence moyenne). Ne pas bâtir

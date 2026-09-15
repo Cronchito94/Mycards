@@ -73,6 +73,7 @@ pas un simple « je suis en vie ».
 ├── docs/IMPORT.md           # import du référentiel et constats sur TCGdex
 ├── docs/API.md              # API de recherche
 ├── docs/COLLECTION.md       # collection, ventes et statistiques
+├── docs/PRICING.md          # relevé des cotes et valorisation
 ├── CLAUDE.md                # conventions, commandes, état d'avancement
 └── backend/
     ├── Dockerfile
@@ -100,7 +101,7 @@ pas un simple « je suis en vie ».
 - [ ] Lot 2 bis — Import du référentiel Riftbound
 - [x] **Lot 3** — API de recherche ([`docs/API.md`](docs/API.md))
 - [x] **Lot 4** — Gestion de la collection ([`docs/COLLECTION.md`](docs/COLLECTION.md))
-- [ ] Lot 5 — Prix et historique
+- [x] **Lot 5** — Prix et historique ([`docs/PRICING.md`](docs/PRICING.md))
 - [ ] Lot 6 — Front PWA
 - [ ] Lot 7 — Reconnaissance de carte par photo
 
