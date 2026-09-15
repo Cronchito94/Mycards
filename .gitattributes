@@ -1,0 +1,33 @@
+# Normalisation des fins de ligne.
+#
+# Sans ce fichier, sur un poste Windows (git config core.autocrlf=true, qui est
+# le réglage par défaut de Git for Windows), les fichiers texte sont checkoutés
+# en CRLF. Un script copié dans une image Linux devient alors inexécutable et le
+# conteneur meurt sur son shebang :
+#
+#   env: 'bash\r': No such file or directory        (puis redémarrage en boucle)
+#
+# Constaté le 15/09/2026 sur backend/docker-entrypoint.sh.
+* text=auto eol=lf
+
+# Redondant avec la ligne ci-dessus, mais explicite : ces fichiers sont lus par
+# un système Linux et ne doivent jamais partir en CRLF.
+*.sh      text eol=lf
+*.py      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.toml    text eol=lf
+*.ini     text eol=lf
+*.mako    text eol=lf
+Dockerfile        text eol=lf
+.dockerignore     text eol=lf
+.env.example      text eol=lf
+
+# Binaires : jamais de conversion.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
