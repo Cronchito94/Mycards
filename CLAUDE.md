@@ -68,7 +68,7 @@ curl 'localhost:8000/api/v1/cards?q=dracaufeu'
 curl 'localhost:8000/api/v1/cards/809'
 open http://localhost:8000/docs          # doc interactive
 
-# Tests — dont ceux qui exigent le référentiel importé.
+# Tests — 44, dont 9 qui exigent le référentiel importé.
 # Les tests sont montés dans le conteneur, pas embarqués dans l'image.
 # Sans référentiel en base, ces 9 se **sautent** (« 21 passed, 9 skipped ») :
 # la garde interroge les données, pas DATABASE_URL — qui est toujours défini
@@ -458,7 +458,7 @@ rattachée au TCG — `rarity`, `finish`, et désormais `card_type`. Ce qui sert
 
 ### Ce qui distingue deux lignes appartient à la clé, jamais au JSONB
 
-Corollaire appris à ses dépens (migration `0006`). Le format d'une carte était
+Corollaire appris à ses dépens (migration `0007`). Le format d'une carte était
 rangé dans `printing.attributes` — donc hors de
 `UNIQUE (card_id, finish_id, language)`. Or le Bulbasaur du Set de Base existe
 en normal **standard** et en normal **jumbo**, deux cotes sans rapport : la

@@ -164,7 +164,7 @@ coter. Aucune migration nécessaire.
 **Six finitions, deux formats.** Le format est une colonne de `printing`
 (`size`) et un membre de sa clé d'unicité, pas un suffixe de finition : une
 jumbo est bien une impression distincte — deux cotes sans rapport — mais ce
-n'est pas une autre *finition*. Voir la migration `0006`, qui a ramené neuf
+n'est pas une autre *finition*. Voir la migration `0007`, qui a ramené neuf
 codes à six.
 
 `first_edition` ne vient que des booléens, et `variants` ne fournit aucun

@@ -18,6 +18,7 @@ import dataclasses
 import pytest
 
 from app.services.search import CardFilters, escape_like
+from tests.conftest import pytestmark_db
 
 
 class TestEscapeLike:
@@ -57,34 +58,6 @@ class TestCardFilters:
 # ---------------------------------------------------------------------------
 # Tests d'intégration : exigent la base et le référentiel du lot 2.
 # ---------------------------------------------------------------------------
-
-def _referentiel_charge() -> bool:
-    """Y a-t-il au moins une carte en base ?
-
-    Connexion synchrone volontaire : la garde est évaluée à la collecte, avant
-    toute boucle asyncio. Toute erreur — base éteinte, schéma absent, table
-    vide — rend False : on saute, on n'échoue pas.
-    """
-    try:
-        import psycopg
-
-        from app.core.config import get_settings
-
-        dsn = get_settings().database_url.replace("+psycopg", "")
-        with psycopg.connect(dsn, connect_timeout=3) as connexion:
-            ligne = connexion.execute("SELECT EXISTS (SELECT 1 FROM card)").fetchone()
-            return bool(ligne and ligne[0])
-    except Exception:
-        return False
-
-
-pytestmark_db = pytest.mark.skipif(
-    not _referentiel_charge(),
-    reason=(
-        "référentiel non importé : docker compose exec api "
-        "python -m app.importers.cli --languages en,fr"
-    ),
-)
 
 
 @pytest.fixture

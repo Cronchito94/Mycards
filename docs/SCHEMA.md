@@ -105,7 +105,7 @@ différente.
 > d'autre choix que de fabriquer des finitions `normal_jumbo`, `holo_jumbo`…,
 > dupliquant l'information et gonflant le vocabulaire de `finish` à chaque
 > format. D'où la colonne `printing.size`, membre de
-> `uq_printing_card_finish_language_size` (migration `0006`).
+> `uq_printing_card_finish_language_size` (migration `0007`).
 >
 > La leçon vaut pour la suite : **ce qui distingue deux lignes appartient à la
 > clé, jamais au JSONB.**

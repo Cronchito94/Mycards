@@ -320,7 +320,7 @@ class Printing(TimestampMixin, Base):
     # cotes sans rapport. Sans lui dans la clé, l'import n'avait d'autre choix
     # que de fabriquer des finitions `normal_jumbo` — ce qui multipliait le
     # vocabulaire de `finish` par le nombre de formats et dédoublait
-    # l'information. Voir la migration 0006.
+    # l'information. Voir la migration 0007.
     #
     # Non nul et jamais vide : `standard` est la valeur par défaut, pas `NULL`.
     # Un `NULL` sortirait les lignes concernées de la contrainte d'unicité, qui

@@ -89,7 +89,7 @@ class TestExtractFinishes:
         assert specs[0].external_ids()["cardmarket"] == [720365, 733596]
 
     def test_jumbo_garde_le_code_de_finition_et_porte_sa_taille(self) -> None:
-        # Depuis la migration 0006, le format ne suffixe plus la finition :
+        # Depuis la migration 0007, le format ne suffixe plus la finition :
         # il vit dans `printing.size`, membre de la clé d'unicité.
         payload = {
             "variants": {},

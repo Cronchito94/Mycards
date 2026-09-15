@@ -330,7 +330,7 @@ class TcgdexImporter:
             )
             # Le format est une colonne, plus une clé d'`attributes` ni un
             # suffixe de finition : il fait partie de l'identité de
-            # l'impression, donc de sa clé d'unicité (migration 0006).
+            # l'impression, donc de sa clé d'unicité (migration 0007).
             valeurs = {
                 "card_id": card_id,
                 "finish_id": finish_id,

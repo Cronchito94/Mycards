@@ -78,7 +78,7 @@ BOOLEAN_FINISH_LABELS: dict[str, str] = {
 }
 
 # Format considéré comme la norme. Il ne suffixe rien : la taille est une
-# colonne de `printing`, membre de sa clé d'unicité (migration 0006).
+# colonne de `printing`, membre de sa clé d'unicité (migration 0007).
 DEFAULT_SIZE = "standard"
 
 # Champs de la charge utile **invariants par langue** (vérifié en comparant la
@@ -153,7 +153,7 @@ class FinishSpec:
         """Le code stocké en base, sans le format.
 
         Une jumbo n'a ni la même cote ni la même place, mais ça n'en fait pas
-        une autre *finition* : depuis la migration 0006, le format est une
+        une autre *finition* : depuis la migration 0007, le format est une
         colonne de `printing` et un membre de sa clé d'unicité. Le suffixer ici
         dupliquerait l'information et gonflerait le vocabulaire de `finish` à
         chaque format rencontré.

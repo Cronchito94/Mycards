@@ -15,8 +15,8 @@ D'où `printing.size`, non nul, par défaut `standard`, **membre de la contraint
 d'unicité**. Les finitions suffixées sont fusionnées vers leur finition de base
 et les impressions concernées reprennent leur taille dans la nouvelle colonne.
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0007
+Revises: 0006
 Create Date: 2026-09-15 13:30:00
 
 """
@@ -25,8 +25,8 @@ from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0006'
-down_revision: str | None = '0005'
+revision: str = '0007'
+down_revision: str | None = '0006'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

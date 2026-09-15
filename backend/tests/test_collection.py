@@ -9,14 +9,9 @@ collection un jour de distraction.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
-pytestmark_db = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL absent : test d'intégration sauté",
-)
+from tests.conftest import pytestmark_db
 
 
 @pytest.fixture
