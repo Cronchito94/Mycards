@@ -24,6 +24,18 @@ class Settings(BaseSettings):
         description="DSN SQLAlchemy (driver psycopg v3)",
     )
 
+    # --- Import du référentiel (lot 2) ---
+    # Par défaut l'instance auto-hébergée du docker-compose. Pour viser l'API
+    # publique : https://api.tcgdex.net
+    tcgdex_base_url: str = Field(
+        default="http://tcgdex:3000",
+        description="Racine de l'API TCGdex (sans /v2)",
+    )
+    # Requêtes par seconde. 0 = pas de limite, ce qui n'a de sens que contre
+    # une instance locale ; viser l'API publique impose d'en fixer une.
+    tcgdex_rate_limit: float = 0.0
+    tcgdex_concurrency: int = 16
+
     @property
     def async_database_url(self) -> str:
         """Même DSN, forcé sur le driver async.
