@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,11 +18,14 @@ from app.schemas.collection import (
     LotOut,
     SaleCreate,
     SaleOut,
+    ValuationOut,
+    ValuationPoint,
     build_printing_ref,
 )
 from app.schemas.common import Page
 from app.services import collection as service
 from app.services import stats as stats_service
+from app.services import valuation as valuation_service
 from app.services.collection import CollectionError, HoldingFilters
 
 router = APIRouter(prefix="/collection", tags=["collection"])
@@ -248,13 +253,21 @@ async def delete_sale(
         "Trois compteurs, parce que « combien de cartes ai-je ? » a trois "
         "réponses : `items` (cartes physiques), `distinct_printings` (versions "
         "différentes), `distinct_cards` (cartes du référentiel).\n\n"
-        "Les montants sont rendus **par devise**, sans aucune conversion."
+        "`purchase_value` est ce que tu as **payé**, `market_value` ce que la "
+        "collection **vaut** à la dernière cote connue. Les deux sont rendus "
+        "par devise, sans aucune conversion."
     ),
 )
 async def get_stats(
     tcg: str | None = None, session: AsyncSession = Depends(get_session)
 ) -> CollectionStats:
-    return CollectionStats(**await stats_service.collection_stats(session, tcg=tcg))
+    donnees = await stats_service.collection_stats(session, tcg=tcg)
+    # La valeur de marché vit dans son propre service : les statistiques la
+    # rapatrient pour qu'un tableau de bord tienne en un seul appel.
+    marche = await valuation_service.valuation(session, tcg=tcg)
+    donnees["market_value"] = marche["totals"]
+    donnees["printings_without_quote"] = marche["uncovered_printings"]
+    return CollectionStats(**donnees)
 
 
 @router.get(
@@ -295,3 +308,55 @@ def _sale_out(vente: object) -> SaleOut:
         notes=vente.notes,
         printing=build_printing_ref(vente.printing),
     )
+
+
+@router.get(
+    "/valuation",
+    response_model=ValuationOut,
+    summary="Valeur de marché de la collection",
+    description=(
+        "Applique à chaque impression possédée sa **dernière cote connue**, "
+        "multipliée par la quantité. C'est ce qui donne une valeur aux cartes "
+        "dont tu n'as saisi aucun prix d'achat.\n\n"
+        "La cote NM s'applique à tous les états. Les montants sont rendus par "
+        "devise, sans conversion. Les impressions sans cote sont comptées à "
+        "part : elles ne valent pas zéro, leur valeur est inconnue.\n\n"
+        "`oldest_quote` dit sur quelles dates s'appuie le total — à toi de "
+        "juger si c'est frais."
+    ),
+)
+async def get_valuation(
+    at: date | None = Query(None, description="Valeur à cette date. Défaut : aujourd'hui."),
+    tcg: str | None = None,
+    source: str | None = Query(None, description="Code de source, ex. `cardmarket`."),
+    session: AsyncSession = Depends(get_session),
+) -> ValuationOut:
+    return ValuationOut(
+        **await valuation_service.valuation(session, as_of=at, tcg=tcg, source=source)
+    )
+
+
+@router.get(
+    "/valuation/history",
+    response_model=list[ValuationPoint],
+    summary="Évolution de la valeur",
+    description=(
+        "Série temporelle sur 7, 30 ou 365 jours.\n\n"
+        "⚠️ Les cotes passées sont appliquées à la collection **d'aujourd'hui**. "
+        "La courbe répond donc à « combien vaudrait ma collection actuelle aux "
+        "prix d'alors », pas à « combien valait ma collection alors » — "
+        "reconstituer la seconde exigerait un historique des possessions que le "
+        "schéma ne garde pas."
+    ),
+)
+async def get_valuation_history(
+    days: int = Query(30, ge=1, le=1825, description="Profondeur en jours."),
+    step_days: int = Query(1, ge=1, le=30, description="Pas d'échantillonnage."),
+    tcg: str | None = None,
+    source: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> list[ValuationPoint]:
+    points = await valuation_service.valuation_history(
+        session, days=days, tcg=tcg, source=source, step_days=step_days
+    )
+    return [ValuationPoint(**p) for p in points]

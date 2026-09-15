@@ -145,6 +145,42 @@ class PlatformTotal(MoneyTotal):
     platform: str
 
 
+class ValuationTotal(BaseModel):
+    """Valeur de marché pour une devise et une source.
+
+    `oldest_quote` est la date du relevé le plus ancien entré dans ce total :
+    c'est l'indicateur de fraîcheur. Une valeur appuyée sur des cotes de trois
+    mois n'est pas une valeur actuelle, et le serveur ne le décide pas à ta
+    place — il te le montre.
+    """
+
+    currency: str
+    source: str
+    total: Decimal
+    quantity: int
+    printings: int
+    oldest_quote: date | None = None
+    newest_quote: date | None = None
+
+
+class ValuationOut(BaseModel):
+    """Valorisation de la collection à une date."""
+
+    as_of: date
+    totals: list[ValuationTotal] = Field(default_factory=list)
+    # Exemplaires dont aucune cote n'est connue. Ils ne valent pas zéro :
+    # leur valeur est inconnue, ce qui est une information différente.
+    uncovered_quantity: int = 0
+    uncovered_printings: int = 0
+
+
+class ValuationPoint(BaseModel):
+    date: date
+    currency: str
+    total: Decimal
+    printings: int
+
+
 class CollectionStats(BaseModel):
     """Les trois compteurs, plus l'argent.
 
@@ -163,6 +199,11 @@ class CollectionStats(BaseModel):
     items_without_price: int = 0
     sales_total: list[MoneyTotal] = Field(default_factory=list)
     sales_by_platform: list[PlatformTotal] = Field(default_factory=list)
+    # Valeur au prix du marché, dernière cote connue par impression. C'est ce
+    # qui donne une valeur aux cartes dont aucun prix d'achat n'a été saisi.
+    # Détail et fraîcheur des cotes sur /collection/valuation.
+    market_value: list[ValuationTotal] = Field(default_factory=list)
+    printings_without_quote: int = 0
 
 
 class ExpansionRef(BaseModel):
