@@ -21,6 +21,12 @@ La spec de référence est dans `docs/SPEC.md`.
 **Règle de travail : un lot à la fois. On s'arrête en fin de lot et on attend
 une validation explicite avant de démarrer le suivant.**
 
+Lots 0 et 1 rejoués et vérifiés le 15/09/2026 sur le poste Windows (Docker
+29.7) : la pile démarre, `/health` répond 200, `alembic current` donne
+`0003 (head)`, les 12 tables sont créées, et `pg_trgm`, `unaccent` et l'index
+`ix_card_name_normalized_trgm` sont bien en place. Une correction a été
+nécessaire pour y parvenir — voir « Fins de ligne forcées en LF » plus bas.
+
 ---
 
 ## Commandes utiles
@@ -162,18 +168,91 @@ code réellement copié qui est importé, pas le résidu en `site-packages`.
 
 ---
 
+### Fins de ligne forcées en LF (`.gitattributes`)
+
+Git for Windows checkoute en CRLF par défaut (`core.autocrlf=true`).
+`docker-entrypoint.sh` partait alors en CRLF dans l'image et le conteneur
+mourait sur son shebang — `env: 'bash\r': No such file or directory`, exit 127,
+redémarrage en boucle — sans que rien dans les logs ne désigne Git.
+`.gitattributes` force `eol=lf` sur tout le texte.
+
+Attention : le fichier corrige les checkouts **futurs**. Les fichiers déjà
+présents dans le répertoire de travail restent en CRLF jusqu'à un re-checkout :
+
+```bash
+rm backend/docker-entrypoint.sh && git checkout -- backend/docker-entrypoint.sh
+```
+
+---
+
 ## Points ouverts
 
-- **Lot 2** : explorer et **montrer la structure réelle** renvoyée par TCGdex
-  avant d'écrire le moindre mapping. Les finitions réelles iront dans la table
-  `finish` (un `INSERT`, pas une migration) ; la table `rarity` se remplit de
-  la même façon, au fil de l'import.
-- **Lot 2** : l'idempotence de l'import s'appuie sur `external_ids` (JSONB
-  indexé GIN) sur `expansion`, `card` et `printing`.
-- **Lot 3** : vérifier que l'index `ix_card_name_normalized_trgm` est
-  réellement utilisé (`EXPLAIN ANALYZE`) une fois le référentiel chargé — sur
-  une table quasi vide, PostgreSQL l'ignore à raison.
-- **Lot 5** : vérifier l'état actuel de l'API pokemontcg.io avant de coder ;
-  le connecteur de prix passe derrière une interface abstraite.
-- **Riftbound** : hors périmètre jusqu'après le lot 5, mais le schéma du lot 1
-  doit pouvoir l'accueillir sans migration douloureuse.
+### Lot 2 — TCGdex
+
+- Explorer et **montrer la structure réelle** renvoyée par TCGdex avant d'écrire
+  le moindre mapping. Les finitions réelles iront dans la table `finish` (un
+  `INSERT`, pas une migration) ; `rarity` se remplit de la même façon, au fil de
+  l'import.
+- L'idempotence de l'import s'appuie sur `external_ids` (JSONB indexé GIN) sur
+  `expansion`, `card` et `printing`.
+- **TCGdex peut être auto-hébergé**, et c'est probablement le bon choix : image
+  `tcgdex/server:edge` (MIT, ~81 Mo, amd64 + arm64), données embarquées, aucune
+  base externe. Import sans limite de débit ni dépendance réseau. Vérifié le
+  15/09/2026 : démarrage en ~25 s, `/v2/fr/sets` renvoie 200 extensions en
+  français. À trancher au lot 2 ; sinon `https://api.tcgdex.net/v2`.
+- Si on l'auto-héberge, **`CI=true` est obligatoire** sur le conteneur. Sans
+  cette variable, le serveur télécharge les tarifs Cardmarket et TCGplayer
+  *avant* d'ouvrir son port HTTP ; derrière une inspection TLS (WARP, proxy
+  d'entreprise) ces appels échouent en boucle (`SELF_SIGNED_CERT_IN_CHAIN`) et
+  le port 3000 n'est jamais ouvert. Le conteneur paraît sain, les logs affichent
+  même « 🚀 Server ready », mais `/proc/net/tcp` ne montre aucun socket en
+  écoute. `CI=true` saute ce chargement : c'est l'échappatoire prévue en amont
+  (`server/src/index.ts`), et les prix nous concernent au lot 5, pas ici.
+- L'amont ne publie **aucun tag versionné** (seulement `edge` et
+  `branch-master`) : revérifier que l'API répond après chaque `pull`.
+
+### Lot 3
+
+- Vérifier que l'index `ix_card_name_normalized_trgm` est réellement utilisé
+  (`EXPLAIN ANALYZE`) une fois le référentiel chargé — sur une table quasi vide,
+  PostgreSQL l'ignore à raison.
+
+### Lot 5 — les sources de prix ont changé depuis la rédaction de la spec
+
+État vérifié le 15/09/2026. `docs/SPEC.md` désigne encore pokemontcg.io comme
+source du lot 5 : **à rediscuter avant de coder.**
+
+- **pokemontcg.io a été absorbée par Scrydex** et s'est fortement dégradée
+  (mesures publiques : ~59 % d'erreurs, ~8 s de latence moyenne). Ne pas bâtir
+  le lot 5 dessus sans l'avoir remesurée.
+- **Cardmarket n'accepte plus de nouvelles demandes d'accès à son API.** La voie
+  directe est fermée.
+- Alternatives : **JustTCG** (palier gratuit 1 000 appels/mois, 100/jour, 17
+  jeux dont Riftbound) et **Scrydex** (couverture complète, historique et prix
+  gradués, mais 29 $/mois minimum, sans palier gratuit ; 5 000 crédits ≈ 160
+  requêtes/jour, l'historique en coûte 3).
+- Piste à vérifier au déploiement : le serveur TCGdex embarque ses **propres**
+  providers Cardmarket et TCGplayer (visible dans ses logs de démarrage). Hors
+  inspection TLS, il pourrait donc servir aussi des prix. Non vérifiable depuis
+  le poste, dont le réseau casse ces appels.
+- Pour Magic, le jour venu : **Scryfall** publie un dump quotidien gratuit, sans
+  clé, prix EUR/USD inclus.
+- Le connecteur de prix reste derrière une interface abstraite, conformément à
+  la spec — c'est précisément ce qui permet d'absorber ces changements.
+
+### Riftbound
+
+Hors périmètre jusqu'après le lot 5, mais le schéma du lot 1 doit pouvoir
+l'accueillir sans migration douloureuse. Écosystème d'API désormais existant
+mais jeune (Riftcodex, Piltover Archive, apitcg.com, JustTCG) : aucune source
+n'est encore garantie pérenne.
+
+### Poste de développement
+
+- Les ports **8000, 8090 et 5173 sont occupés** sur le poste Windows de
+  référence. Renseigner `API_HOST_PORT` (et `POSTGRES_HOST_PORT`) dans `.env`
+  plutôt que de garder les valeurs par défaut — sinon `docker compose up`
+  échoue sur le bind.
+- Sous Git Bash, préfixer par `MSYS_NO_PATHCONV=1` tout `docker run -v … -w
+  /chemin` : sinon `/app` est converti en chemin Windows et le démon refuse
+  (« working directory 'C:/Program Files/Git/app' is invalid »).

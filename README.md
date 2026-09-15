@@ -31,6 +31,22 @@ Puis :
 `docker compose up` attend que Postgres soit *healthy*, applique les migrations
 Alembic, puis démarre l'API.
 
+Les URLs ci-dessus supposent `API_HOST_PORT=8000`. Si ce port est déjà pris sur
+votre machine, changez-le dans `.env` — le conteneur, lui, écoute toujours 8000.
+
+### Sur un poste Windows
+
+Le dépôt force les fins de ligne en LF via `.gitattributes`. Sans cela,
+`docker-entrypoint.sh` part en CRLF dans l'image et le conteneur `api` meurt sur
+son shebang (`env: 'bash\r': No such file or directory`) en redémarrant à
+l'infini. Si vous avez cloné le dépôt **avant** l'ajout de ce fichier, forcez un
+re-checkout, l'attribut ne s'applique pas rétroactivement :
+
+```bash
+rm backend/docker-entrypoint.sh && git checkout -- backend/docker-entrypoint.sh
+file backend/docker-entrypoint.sh   # ne doit plus indiquer « CRLF line terminators »
+```
+
 ## Vérifier que tout tourne
 
 ```bash
